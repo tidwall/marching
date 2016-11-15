@@ -2,10 +2,10 @@ package marching
 
 import (
 	"bytes"
-	"image/color"
 	"image/png"
 	"io/ioutil"
 	"testing"
+	"time"
 )
 
 var (
@@ -48,6 +48,7 @@ var (
 
 func TestGrid(t *testing.T) {
 	//grid := NewGrid(testAValues, testAWidth, testAHeight, testALevel)
+	start := time.Now()
 	grid := NewGrid(testBValues, testBWidth, testBHeight, testBLevel)
 	/*
 		if len(grid.Cells) != len(testACases) {
@@ -62,13 +63,17 @@ func TestGrid(t *testing.T) {
 				}
 			}
 	*/
-	img := grid.Image(1000, 500, &ImageOptions{
-		Marks:       false,
-		FillColor:   color.NRGBA{0xff, 0, 0, 0xff},
-		StrokeColor: color.NRGBA{0, 0, 0, 0xff},
-		LineWidth:   10,
-		ExpandEdges: false,
-	})
+	img := grid.Image(1000, 500, &ImageOptions{})
+	/*
+			Marks:       true,
+			FillColor:   color.NRGBA{0xff, 0, 0, 0xff},
+			StrokeColor: color.NRGBA{0, 0, 0, 0xff},
+			LineWidth:   10,
+			ExpandEdges: true,
+			Spline:      1.5,
+		})
+	*/
+	println(time.Now().Sub(start).String())
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		t.Fatal(err)

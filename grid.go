@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"github.com/fogleman/gg"
+	"github.com/llgcode/draw2d/draw2dimg"
 )
 
 type Case byte
@@ -74,6 +75,7 @@ type ImageOptions struct {
 	NoStroke    bool
 	NoFill      bool
 	ExpandEdges bool
+	Spline      float64
 }
 
 //////////////////////////////
@@ -129,6 +131,7 @@ func (lg *lineGatherer) Copy() *lineGatherer {
 	}
 	return nlg
 }
+
 func (lg *lineGatherer) RemoveEdges() {
 	for i := 0; i < len(lg.lines); i++ {
 		if lg.lines[i].edge {
@@ -138,6 +141,11 @@ func (lg *lineGatherer) RemoveEdges() {
 		}
 	}
 }
+
+func (lg *lineGatherer) Spline(amount float64) *lineGatherer {
+	return lg
+}
+
 func (lg *lineGatherer) ReduceLines(edges bool) {
 again1:
 	for i := 0; i < len(lg.lines); i++ {
@@ -440,118 +448,19 @@ func (grid *Grid) Image(width, height int, opts *ImageOptions) *image.RGBA {
 	if opts.FillColor == nil {
 		opts.FillColor = color.NRGBA{0, 0, 0, 0x77}
 	}
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	gc := gg.NewContextForRGBA(img)
-
-	if opts.Marks {
-		var rp float64
-		if widthf < heightf {
-			rp = widthf / 256
-		} else {
-			rp = heightf / 256
-		}
-		// draw background
-		gc.Clear()
-		gc.SetColor(color.White)
-		gc.MoveTo(0, 0)
-		gc.LineTo(widthf, 0)
-		gc.LineTo(widthf, heightf)
-		gc.LineTo(0, heightf)
-		gc.LineTo(0, 0)
-		gc.Fill()
-
-		// draw value outlines
-		gc.SetColor(color.RGBA{0xCC, 0xCC, 0xCC, 0xFF})
-		gc.SetLineWidth(rp * 2)
-		gc.MoveTo(0, 0)
-		gc.LineTo(widthf, 0)
-		gc.LineTo(widthf, heightf)
-		gc.LineTo(0, heightf)
-		gc.LineTo(0, 0)
-		gc.Stroke()
-		gc.SetLineWidth(rp * 1)
-		cellh := heightf / float64(grid.Width+1)
-		cellw := widthf / float64(grid.Height+1)
-		for y := cellh; y < heightf; y += cellh {
-			gc.MoveTo(0, y)
-			gc.LineTo(widthf, y)
-			gc.Stroke()
-		}
-		for x := cellw; x < widthf; x += cellw {
-			gc.MoveTo(x, 0)
-			gc.LineTo(x, heightf)
-			gc.Stroke()
-		}
-
-		// draw grid outlines
-		gc.SetColor(color.RGBA{0x99, 0x99, 0x99, 0xFF})
-		gc.SetLineWidth(rp * 4)
-		gc.MoveTo(cellw/2, cellh/2)
-		gc.LineTo(widthf-cellw/2, cellh/2)
-		gc.LineTo(widthf-cellw/2, heightf-cellh/2)
-		gc.LineTo(cellw/2, heightf-cellh/2)
-		gc.LineTo(cellw/2, cellh/2)
-		gc.Stroke()
-		for y := cellh + cellh/2; y < heightf; y += cellh {
-			gc.MoveTo(cellw/2, y)
-			gc.LineTo(widthf-cellw/2, y)
-			gc.Stroke()
-		}
-		for x := cellw + cellw/2; x < widthf; x += cellw {
-			gc.MoveTo(x, cellh/2)
-			gc.LineTo(x, heightf-cellh/2)
-			gc.Stroke()
-		}
-
-		// draw cell outlines
-		for y := 0; y < grid.Height; y++ {
-			for x := 0; x < grid.Width; x++ {
-				cell := grid.Cells[y*grid.Height+x]
-
-				gc.SetLineWidth(rp * 1)
-				gc.SetColor(color.White)
-				gc.DrawCircle(cellw/2+cellw*float64(x), cellh/2+cellh*float64(y), rp*8)
-				gc.DrawCircle(cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y), rp*8)
-				gc.DrawCircle(cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y+1), rp*8)
-				gc.DrawCircle(cellw/2+cellw*float64(x), cellh/2+cellh*float64(y+1), rp*8)
-				gc.Fill()
-
-				gc.SetColor(color.Black)
-				gc.DrawCircle(cellw/2+cellw*float64(x), cellh/2+cellh*float64(y), rp*8)
-				gc.DrawCircle(cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y), rp*8)
-				gc.DrawCircle(cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y+1), rp*8)
-				gc.DrawCircle(cellw/2+cellw*float64(x), cellh/2+cellh*float64(y+1), rp*8)
-				gc.Stroke()
-
-				//top-left
-				if cell.Case&0x8 != 0 {
-					gc.SetColor(color.Black)
-					gc.DrawCircle(cellw/2+cellw*float64(x), cellh/2+cellh*float64(y), rp*8)
-					gc.Fill()
-				}
-				// top-right
-				if cell.Case&0x4 != 0 {
-					gc.SetColor(color.Black)
-					gc.DrawCircle(cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y), rp*8)
-					gc.Fill()
-				}
-				// bottom-right
-				if cell.Case&0x2 != 0 {
-					gc.SetColor(color.Black)
-					gc.DrawCircle(cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y+1), rp*8)
-					gc.Fill()
-				}
-				// bottom-left
-				if cell.Case&0x1 != 0 {
-					gc.SetColor(color.Black)
-					gc.DrawCircle(cellw/2+cellw*float64(x), cellh/2+cellh*float64(y+1), rp*8)
-					gc.Fill()
-				}
-			}
-		}
-		gc.SetColor(color.RGBA{0x1b, 0xa3, 0xe5, 0xff})
-		gc.SetLineWidth(rp * 6)
+	var rp float64
+	if widthf < heightf {
+		rp = widthf / 256
+	} else {
+		rp = heightf / 256
 	}
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	if opts.Marks {
+		//grid.drawMarksGG(img, rp, widthf, heightf)
+		grid.drawMarks(img, rp, widthf, heightf)
+	}
+	gc := gg.NewContextForRGBA(img)
+	//return img
 
 	lg := newLineGatherer()
 	for y := 0; y < grid.Height; y++ {
@@ -561,7 +470,6 @@ func (grid *Grid) Image(width, height int, opts *ImageOptions) *image.RGBA {
 		}
 	}
 	lg.ReduceLines(false)
-
 	// draw fill
 	if !opts.NoFill {
 		fill := lg.Copy()
@@ -571,22 +479,241 @@ func (grid *Grid) Image(width, height int, opts *ImageOptions) *image.RGBA {
 		} else {
 			gc.SetColor(color.NRGBA{0, 0, 0, 0x11})
 		}
+		fill = fill.Spline(opts.Spline)
 		fill.DrawToContext(gc, false)
 		gc.Fill()
 	}
+	// return img
 	// draw stroke
 	if !opts.NoStroke {
 		stroke := lg.Copy()
 		if opts.Marks {
 			stroke.ReduceLines(true)
+			gc.SetLineWidth(opts.LineWidth)
 		} else {
 			stroke.RemoveEdges()
 			gc.SetLineWidth(opts.LineWidth)
 		}
 		gc.SetColor(opts.StrokeColor)
+		stroke = stroke.Spline(opts.Spline)
 		stroke.DrawToContext(gc, false)
 		gc.Stroke()
 	}
 
 	return img
+}
+func (grid *Grid) drawMarks(img *image.RGBA, rp, widthf, heightf float64) {
+	gc := draw2dimg.NewGraphicContext(img)
+
+	// draw background
+	gc.Clear()
+	gc.SetFillColor(color.White)
+	gc.MoveTo(0, 0)
+	gc.LineTo(widthf, 0)
+	gc.LineTo(widthf, heightf)
+	gc.LineTo(0, heightf)
+	gc.LineTo(0, 0)
+	gc.Fill()
+
+	// draw value outlines
+	gc.SetStrokeColor(color.RGBA{0xCC, 0xCC, 0xCC, 0xFF})
+	gc.SetLineWidth(rp * 2)
+	gc.MoveTo(0, 0)
+	gc.LineTo(widthf, 0)
+	gc.LineTo(widthf, heightf)
+	gc.LineTo(0, heightf)
+	gc.LineTo(0, 0)
+	gc.Stroke()
+	gc.SetLineWidth(rp * 1)
+	cellh := heightf / float64(grid.Width+1)
+	cellw := widthf / float64(grid.Height+1)
+	for y := cellh; y < heightf; y += cellh {
+		gc.MoveTo(0, y)
+		gc.LineTo(widthf, y)
+		gc.Stroke()
+	}
+	for x := cellw; x < widthf; x += cellw {
+		gc.MoveTo(x, 0)
+		gc.LineTo(x, heightf)
+		gc.Stroke()
+	}
+	// draw grid outlines
+	gc.SetStrokeColor(color.RGBA{0x99, 0x99, 0x99, 0xFF})
+	gc.SetLineWidth(rp * 4)
+	gc.MoveTo(cellw/2, cellh/2)
+	gc.LineTo(widthf-cellw/2, cellh/2)
+	gc.LineTo(widthf-cellw/2, heightf-cellh/2)
+	gc.LineTo(cellw/2, heightf-cellh/2)
+	gc.LineTo(cellw/2, cellh/2)
+	gc.Stroke()
+	for y := cellh + cellh/2; y < heightf; y += cellh {
+		gc.MoveTo(cellw/2, y)
+		gc.LineTo(widthf-cellw/2, y)
+		gc.Stroke()
+	}
+	for x := cellw + cellw/2; x < widthf; x += cellw {
+		gc.MoveTo(x, cellh/2)
+		gc.LineTo(x, heightf-cellh/2)
+		gc.Stroke()
+	}
+
+	// draw cell outlines
+	for y := 0; y < grid.Height; y++ {
+		for x := 0; x < grid.Width; x++ {
+			cell := grid.Cells[y*grid.Height+x]
+
+			gc.SetLineWidth(rp * 1)
+			gc.SetFillColor(color.White)
+			drawCircle(gc, cellw/2+cellw*float64(x), cellh/2+cellh*float64(y), rp*8)
+			drawCircle(gc, cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y), rp*8)
+			drawCircle(gc, cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y+1), rp*8)
+			drawCircle(gc, cellw/2+cellw*float64(x), cellh/2+cellh*float64(y+1), rp*8)
+			gc.Fill()
+
+			gc.SetStrokeColor(color.Black)
+			drawCircle(gc, cellw/2+cellw*float64(x), cellh/2+cellh*float64(y), rp*8)
+			drawCircle(gc, cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y), rp*8)
+			drawCircle(gc, cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y+1), rp*8)
+			drawCircle(gc, cellw/2+cellw*float64(x), cellh/2+cellh*float64(y+1), rp*8)
+			gc.Stroke()
+
+			//top-left
+			if cell.Case&0x8 != 0 {
+				gc.SetFillColor(color.Black)
+				drawCircle(gc, cellw/2+cellw*float64(x), cellh/2+cellh*float64(y), rp*8)
+				gc.Fill()
+			}
+			// top-right
+			if cell.Case&0x4 != 0 {
+				gc.SetFillColor(color.Black)
+				drawCircle(gc, cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y), rp*8)
+				gc.Fill()
+			}
+			// bottom-right
+			if cell.Case&0x2 != 0 {
+				gc.SetFillColor(color.Black)
+				drawCircle(gc, cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y+1), rp*8)
+				gc.Fill()
+			}
+			// bottom-left
+			if cell.Case&0x1 != 0 {
+				gc.SetFillColor(color.Black)
+				drawCircle(gc, cellw/2+cellw*float64(x), cellh/2+cellh*float64(y+1), rp*8)
+				gc.Fill()
+			}
+		}
+	}
+	gc.SetStrokeColor(color.RGBA{0x1b, 0xa3, 0xe5, 0xff})
+	gc.SetLineWidth(rp * 6)
+}
+
+func drawCircle(gc *draw2dimg.GraphicContext, x, y float64, radius float64) {
+	gc.MoveTo(x+radius, y)
+	gc.ArcTo(x, y, radius, radius, 0, 2*math.Pi)
+}
+
+func (grid *Grid) drawMarksGG(img *image.RGBA, rp, widthf, heightf float64) {
+	gc := gg.NewContextForRGBA(img)
+
+	// draw background
+	gc.Clear()
+	gc.SetColor(color.White)
+	gc.MoveTo(0, 0)
+	gc.LineTo(widthf, 0)
+	gc.LineTo(widthf, heightf)
+	gc.LineTo(0, heightf)
+	gc.LineTo(0, 0)
+	gc.Fill()
+
+	// draw value outlines
+	gc.SetColor(color.RGBA{0xCC, 0xCC, 0xCC, 0xFF})
+	gc.SetLineWidth(rp * 2)
+	gc.MoveTo(0, 0)
+	gc.LineTo(widthf, 0)
+	gc.LineTo(widthf, heightf)
+	gc.LineTo(0, heightf)
+	gc.LineTo(0, 0)
+	gc.Stroke()
+	gc.SetLineWidth(rp * 1)
+	cellh := heightf / float64(grid.Width+1)
+	cellw := widthf / float64(grid.Height+1)
+	for y := cellh; y < heightf; y += cellh {
+		gc.MoveTo(0, y)
+		gc.LineTo(widthf, y)
+		gc.Stroke()
+	}
+	for x := cellw; x < widthf; x += cellw {
+		gc.MoveTo(x, 0)
+		gc.LineTo(x, heightf)
+		gc.Stroke()
+	}
+
+	// draw grid outlines
+	gc.SetColor(color.RGBA{0x99, 0x99, 0x99, 0xFF})
+	gc.SetLineWidth(rp * 4)
+	gc.MoveTo(cellw/2, cellh/2)
+	gc.LineTo(widthf-cellw/2, cellh/2)
+	gc.LineTo(widthf-cellw/2, heightf-cellh/2)
+	gc.LineTo(cellw/2, heightf-cellh/2)
+	gc.LineTo(cellw/2, cellh/2)
+	gc.Stroke()
+	for y := cellh + cellh/2; y < heightf; y += cellh {
+		gc.MoveTo(cellw/2, y)
+		gc.LineTo(widthf-cellw/2, y)
+		gc.Stroke()
+	}
+	for x := cellw + cellw/2; x < widthf; x += cellw {
+		gc.MoveTo(x, cellh/2)
+		gc.LineTo(x, heightf-cellh/2)
+		gc.Stroke()
+	}
+
+	// draw cell outlines
+	for y := 0; y < grid.Height; y++ {
+		for x := 0; x < grid.Width; x++ {
+			cell := grid.Cells[y*grid.Height+x]
+
+			gc.SetLineWidth(rp * 1)
+			gc.SetColor(color.White)
+			gc.DrawCircle(cellw/2+cellw*float64(x), cellh/2+cellh*float64(y), rp*8)
+			gc.DrawCircle(cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y), rp*8)
+			gc.DrawCircle(cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y+1), rp*8)
+			gc.DrawCircle(cellw/2+cellw*float64(x), cellh/2+cellh*float64(y+1), rp*8)
+			gc.Fill()
+
+			gc.SetColor(color.Black)
+			gc.DrawCircle(cellw/2+cellw*float64(x), cellh/2+cellh*float64(y), rp*8)
+			gc.DrawCircle(cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y), rp*8)
+			gc.DrawCircle(cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y+1), rp*8)
+			gc.DrawCircle(cellw/2+cellw*float64(x), cellh/2+cellh*float64(y+1), rp*8)
+			gc.Stroke()
+
+			//top-left
+			if cell.Case&0x8 != 0 {
+				gc.SetColor(color.Black)
+				gc.DrawCircle(cellw/2+cellw*float64(x), cellh/2+cellh*float64(y), rp*8)
+				gc.Fill()
+			}
+			// top-right
+			if cell.Case&0x4 != 0 {
+				gc.SetColor(color.Black)
+				gc.DrawCircle(cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y), rp*8)
+				gc.Fill()
+			}
+			// bottom-right
+			if cell.Case&0x2 != 0 {
+				gc.SetColor(color.Black)
+				gc.DrawCircle(cellw/2+cellw*float64(x+1), cellh/2+cellh*float64(y+1), rp*8)
+				gc.Fill()
+			}
+			// bottom-left
+			if cell.Case&0x1 != 0 {
+				gc.SetColor(color.Black)
+				gc.DrawCircle(cellw/2+cellw*float64(x), cellh/2+cellh*float64(y+1), rp*8)
+				gc.Fill()
+			}
+		}
+	}
+	gc.SetColor(color.RGBA{0x1b, 0xa3, 0xe5, 0xff})
+	gc.SetLineWidth(rp * 6)
 }
