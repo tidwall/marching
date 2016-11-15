@@ -35,7 +35,7 @@ var (
 		//2, 1, 1, 1, 1, 2,
 
 		2, 2, 2, 2, 2, 2,
-		2, 1, 1, 1, 1, 1,
+		2, 1, 1, 1, 1, 2,
 		2, 1, 2, 1, 2, 2,
 		2, 1, 2, 1, 1, 1,
 		2, 1, 1, 2, 1, 2,
@@ -63,9 +63,10 @@ func TestGrid(t *testing.T) {
 			}
 	*/
 	img := grid.Image(1000, 500, &ImageOptions{
-		Marks:       true,
-		Color:       color.NRGBA{0, 0, 0, 0x77},
-		LineWidth:   20,
+		Marks:       false,
+		FillColor:   color.NRGBA{0xff, 0, 0, 0xff},
+		StrokeColor: color.NRGBA{0, 0, 0, 0xff},
+		LineWidth:   10,
 		ExpandEdges: false,
 	})
 	var buf bytes.Buffer

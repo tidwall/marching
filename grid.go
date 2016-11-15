@@ -69,7 +69,10 @@ type ImageOptions struct {
 	Rounded     bool
 	Marks       bool
 	LineWidth   float64
-	Color       color.Color
+	StrokeColor color.Color
+	FillColor   color.Color
+	NoStroke    bool
+	NoFill      bool
 	ExpandEdges bool
 }
 
@@ -96,8 +99,9 @@ func (p1 point) veryClose(p2 point) bool {
 }
 
 type line struct {
-	points []point
-	edge   bool
+	points  []point
+	edge    bool
+	connect bool
 }
 
 func (l *line) first() point { return l.points[0] }
@@ -111,8 +115,8 @@ func (lg *lineGatherer) appendLines(i, j int) {
 	lg.lines = append(lg.lines[:j], lg.lines[j+1:]...)
 }
 
-func (lg *lineGatherer) DrawLine(ax, ay, bx, by float64, edge bool) {
-	lg.lines = append(lg.lines, line{[]point{{ax, ay}, {bx, by}}, edge})
+func (lg *lineGatherer) DrawLine(ax, ay, bx, by float64, edge, connect bool) {
+	lg.lines = append(lg.lines, line{[]point{{ax, ay}, {bx, by}}, edge, connect})
 }
 func (lg *lineGatherer) Copy() *lineGatherer {
 	nlg := newLineGatherer()
@@ -125,7 +129,39 @@ func (lg *lineGatherer) Copy() *lineGatherer {
 	}
 	return nlg
 }
+func (lg *lineGatherer) RemoveEdges() {
+	for i := 0; i < len(lg.lines); i++ {
+		if lg.lines[i].edge {
+			lg.lines = append(lg.lines[:i], lg.lines[i+1:]...)
+			i--
+			continue
+		}
+	}
+}
 func (lg *lineGatherer) ReduceLines(edges bool) {
+again1:
+	for i := 0; i < len(lg.lines); i++ {
+		if lg.lines[i].edge && lg.lines[i].connect && len(lg.lines[i].points) == 2 {
+			for j := 0; j < len(lg.lines); j++ {
+				if i != j && lg.lines[j].edge && lg.lines[j].connect && len(lg.lines[j].points) == 2 {
+					if (lg.lines[i].points[0].veryClose(lg.lines[j].points[0]) &&
+						lg.lines[i].points[1].veryClose(lg.lines[j].points[1])) ||
+						(lg.lines[i].points[1].veryClose(lg.lines[j].points[0]) &&
+							lg.lines[i].points[0].veryClose(lg.lines[j].points[1])) {
+						if i < j {
+							lg.lines = append(lg.lines[:j], lg.lines[j+1:]...)
+							lg.lines = append(lg.lines[:i], lg.lines[i+1:]...)
+							goto again1
+						} else {
+							lg.lines = append(lg.lines[:i], lg.lines[i+1:]...)
+							lg.lines = append(lg.lines[:j], lg.lines[j+1:]...)
+							goto again1
+						}
+					}
+				}
+			}
+		}
+	}
 again:
 	for i := 0; i < len(lg.lines); i++ {
 		if !edges && lg.lines[i].edge {
@@ -195,7 +231,7 @@ type lineKey struct {
 }
 
 type drawer interface {
-	DrawLine(ax, ay, bx, by float64, edge bool)
+	DrawLine(ax, ay, bx, by float64, edge, connect bool)
 }
 
 //////////////////////////////
@@ -235,45 +271,45 @@ func (grid *Grid) drawCell(
 	case 0:
 
 	case 1:
-		gc.DrawLine(bottomx, bottomy, leftx, lefty, false)
+		gc.DrawLine(bottomx, bottomy, leftx, lefty, false, false)
 	case 2:
-		gc.DrawLine(rightx, righty, bottomx, bottomy, false)
+		gc.DrawLine(rightx, righty, bottomx, bottomy, false, false)
 	case 3:
-		gc.DrawLine(rightx, righty, leftx, lefty, false)
+		gc.DrawLine(rightx, righty, leftx, lefty, false, false)
 	case 4:
-		gc.DrawLine(topx, topy, rightx, righty, false)
+		gc.DrawLine(topx, topy, rightx, righty, false, false)
 	case 5:
 		if !cell.CenterAbove {
-			gc.DrawLine(topx, topy, rightx, righty, false)
-			gc.DrawLine(bottomx, bottomy, leftx, lefty, false)
+			gc.DrawLine(topx, topy, rightx, righty, false, false)
+			gc.DrawLine(bottomx, bottomy, leftx, lefty, false, false)
 		} else {
-			gc.DrawLine(bottomx, bottomy, rightx, righty, false)
-			gc.DrawLine(topx, topy, leftx, lefty, false)
+			gc.DrawLine(bottomx, bottomy, rightx, righty, false, false)
+			gc.DrawLine(topx, topy, leftx, lefty, false, false)
 		}
 	case 6:
-		gc.DrawLine(topx, topy, bottomx, bottomy, false)
+		gc.DrawLine(topx, topy, bottomx, bottomy, false, false)
 	case 7:
-		gc.DrawLine(topx, topy, leftx, lefty, false)
+		gc.DrawLine(topx, topy, leftx, lefty, false, false)
 	case 8:
-		gc.DrawLine(leftx, lefty, topx, topy, false)
+		gc.DrawLine(leftx, lefty, topx, topy, false, false)
 	case 9:
-		gc.DrawLine(bottomx, bottomy, topx, topy, false)
+		gc.DrawLine(bottomx, bottomy, topx, topy, false, false)
 	case 10:
 		if !cell.CenterAbove {
-			gc.DrawLine(bottomx, bottomy, rightx, righty, false)
-			gc.DrawLine(topx, topy, leftx, lefty, false)
+			gc.DrawLine(bottomx, bottomy, rightx, righty, false, false)
+			gc.DrawLine(topx, topy, leftx, lefty, false, false)
 		} else {
-			gc.DrawLine(rightx, righty, topx, topy, false)
-			gc.DrawLine(leftx, lefty, bottomx, bottomy, false)
+			gc.DrawLine(rightx, righty, topx, topy, false, false)
+			gc.DrawLine(leftx, lefty, bottomx, bottomy, false, false)
 		}
 	case 11:
-		gc.DrawLine(rightx, righty, topx, topy, false)
+		gc.DrawLine(rightx, righty, topx, topy, false, false)
 	case 12:
-		gc.DrawLine(leftx, lefty, rightx, righty, false)
+		gc.DrawLine(leftx, lefty, rightx, righty, false, false)
 	case 13:
-		gc.DrawLine(bottomx, bottomy, rightx, righty, false)
+		gc.DrawLine(bottomx, bottomy, rightx, righty, false, false)
 	case 14:
-		gc.DrawLine(leftx, lefty, bottomx, bottomy, false)
+		gc.DrawLine(leftx, lefty, bottomx, bottomy, false, false)
 	case 15:
 	}
 
@@ -285,15 +321,22 @@ func (grid *Grid) drawCell(
 			bx := ax + cellw
 			by := ay
 			if opts.ExpandEdges {
-				gc.DrawLine(ax, ay, ax, ay-cellh/2, true)
-				gc.DrawLine(ax, ay-cellh/2, bx, by-cellh/2, true)
-				gc.DrawLine(bx, by-cellh/2, bx, by, true)
+				if x == 0 {
+					gc.DrawLine(ax+cellw/2, ay+cellh/2, ax, ay+cellh/2, true, true)
+					gc.DrawLine(ax, ay+cellh/2, ax, ay-cellh/2, true, false)
+					gc.DrawLine(ax, ay-cellh/2, bx, by-cellh/2, true, false)
+					gc.DrawLine(bx, by-cellh/2, bx, by, true, true)
+				} else {
+					gc.DrawLine(ax, ay, ax, by-cellh/2, true, true)
+					gc.DrawLine(ax, by-cellh/2, ax+cellw, by-cellh/2, true, false)
+					gc.DrawLine(ax+cellw, by-cellh/2, bx, by, true, true)
+				}
 			} else {
 				if x == 0 {
-					gc.DrawLine(ax+cellw/2, ay+cellh/2, ax+cellw/2, ay, true)
-					gc.DrawLine(ax+cellw/2, ay, bx, by, true)
+					gc.DrawLine(ax+cellw/2, ay+cellh/2, ax+cellw/2, ay, true, false)
+					gc.DrawLine(ax+cellw/2, ay, bx, by, true, false)
 				} else {
-					gc.DrawLine(ax, ay, bx, by, true)
+					gc.DrawLine(ax, ay, bx, by, true, false)
 				}
 			}
 		}
@@ -305,15 +348,22 @@ func (grid *Grid) drawCell(
 			bx := ax - cellw
 			by := ay
 			if opts.ExpandEdges {
-				gc.DrawLine(ax, ay, ax, ay+cellh/2, true)
-				gc.DrawLine(ax, ay+cellh/2, bx, by+cellh/2, true)
-				gc.DrawLine(bx, by+cellh/2, bx, by, true)
+				if x == grid.Width-1 {
+					gc.DrawLine(ax-cellw/2, ay-cellh/2, ax, ay-cellh/2, true, true)
+					gc.DrawLine(ax, ay-cellh/2, ax, ay+cellh/2, true, false)
+					gc.DrawLine(ax, ay+cellh/2, bx, by+cellh/2, true, false)
+					gc.DrawLine(bx, by+cellh/2, bx, by, true, true)
+				} else {
+					gc.DrawLine(ax, ay, ax, ay+cellh/2, true, true)
+					gc.DrawLine(ax, ay+cellh/2, bx, by+cellh/2, true, false)
+					gc.DrawLine(bx, by+cellh/2, bx, by, true, true)
+				}
 			} else {
 				if x == grid.Width-1 {
-					gc.DrawLine(ax-cellw/2, ay-cellh/2, ax-cellw/2, ay, true)
-					gc.DrawLine(ax-cellw/2, ay, bx, by, true)
+					gc.DrawLine(ax-cellw/2, ay-cellh/2, ax-cellw/2, ay, true, false)
+					gc.DrawLine(ax-cellw/2, ay, bx, by, true, false)
 				} else {
-					gc.DrawLine(ax, ay, bx, by, true)
+					gc.DrawLine(ax, ay, bx, by, true, false)
 				}
 			}
 		}
@@ -326,15 +376,22 @@ func (grid *Grid) drawCell(
 			bx := ax
 			by := ay - cellh
 			if opts.ExpandEdges {
-				gc.DrawLine(ax, ay, ax-cellw/2, ay, true)
-				gc.DrawLine(ax-cellw/2, ay, bx-cellw/2, by, true)
-				gc.DrawLine(bx-cellw/2, by, bx, by, true)
+				if y == grid.Height-1 {
+					gc.DrawLine(ax+cellw/2, ay-cellh/2, ax+cellw/2, ay, true, true)
+					gc.DrawLine(ax+cellw/2, ay, ax-cellw/2, ay, true, false)
+					gc.DrawLine(ax-cellw/2, ay, bx-cellw/2, by, true, false)
+					gc.DrawLine(bx-cellw/2, by, bx, by, true, true)
+				} else {
+					gc.DrawLine(ax, ay, ax-cellw/2, ay, true, true)
+					gc.DrawLine(ax-cellw/2, ay, bx-cellw/2, by, true, false)
+					gc.DrawLine(bx-cellw/2, by, bx, by, true, true)
+				}
 			} else {
 				if y == grid.Height-1 {
-					gc.DrawLine(ax+cellw/2, ay-cellh/2, ax, ay-cellh/2, true)
-					gc.DrawLine(ax, ay-cellh/2, bx, by, true)
+					gc.DrawLine(ax+cellw/2, ay-cellh/2, ax, ay-cellh/2, true, false)
+					gc.DrawLine(ax, ay-cellh/2, bx, by, true, false)
 				} else {
-					gc.DrawLine(ax, ay, bx, by, true)
+					gc.DrawLine(ax, ay, bx, by, true, false)
 				}
 			}
 		}
@@ -346,15 +403,22 @@ func (grid *Grid) drawCell(
 			bx := ax
 			by := ay + cellh
 			if opts.ExpandEdges {
-				gc.DrawLine(ax, ay, ax+cellw/2, ay, true)
-				gc.DrawLine(ax+cellw/2, ay, bx+cellw/2, by, true)
-				gc.DrawLine(bx+cellw/2, by, bx, by, true)
+				if y == 0 {
+					gc.DrawLine(ax-cellw/2, ay+cellh/2, ax-cellw/2, ay, true, true)
+					gc.DrawLine(ax-cellw/2, ay, ax+cellw/2, ay, true, false)
+					gc.DrawLine(ax+cellw/2, ay, bx+cellw/2, by, true, false)
+					gc.DrawLine(bx+cellw/2, by, bx, by, true, true)
+				} else {
+					gc.DrawLine(ax, ay, ax+cellw/2, ay, true, true)
+					gc.DrawLine(ax+cellw/2, ay, bx+cellw/2, by, true, false)
+					gc.DrawLine(bx+cellw/2, by, bx, by, true, true)
+				}
 			} else {
 				if y == 0 {
-					gc.DrawLine(ax-cellw/2, ay+cellh/2, ax, ay+cellh/2, true)
-					gc.DrawLine(ax, ay+cellh/2, bx, by, true)
+					gc.DrawLine(ax-cellw/2, ay+cellh/2, ax, ay+cellh/2, true, false)
+					gc.DrawLine(ax, ay+cellh/2, bx, by, true, false)
 				} else {
-					gc.DrawLine(ax, ay, bx, by, true)
+					gc.DrawLine(ax, ay, bx, by, true, false)
 				}
 			}
 		}
@@ -370,8 +434,11 @@ func (grid *Grid) Image(width, height int, opts *ImageOptions) *image.RGBA {
 	if opts.LineWidth == 0 {
 		opts.LineWidth = 1
 	}
-	if opts.Color == nil {
-		opts.Color = color.Black
+	if opts.StrokeColor == nil {
+		opts.StrokeColor = color.Black
+	}
+	if opts.FillColor == nil {
+		opts.FillColor = color.NRGBA{0, 0, 0, 0x77}
 	}
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	gc := gg.NewContextForRGBA(img)
@@ -484,10 +551,8 @@ func (grid *Grid) Image(width, height int, opts *ImageOptions) *image.RGBA {
 		}
 		gc.SetColor(color.RGBA{0x1b, 0xa3, 0xe5, 0xff})
 		gc.SetLineWidth(rp * 6)
-	} else {
-		gc.SetColor(opts.Color)
-		gc.SetLineWidth(opts.LineWidth)
 	}
+
 	lg := newLineGatherer()
 	for y := 0; y < grid.Height; y++ {
 		for x := 0; x < grid.Width; x++ {
@@ -495,25 +560,33 @@ func (grid *Grid) Image(width, height int, opts *ImageOptions) *image.RGBA {
 			grid.drawCell(cell, x, y, lg, widthf, heightf, opts)
 		}
 	}
-
 	lg.ReduceLines(false)
 
-	var fill, stroke *lineGatherer
-	stroke = lg
-	fill = lg.Copy()
-	fill.ReduceLines(true)
-	if opts.Marks {
-		stroke.ReduceLines(true)
-	}
-
-	fill.DrawToContext(gc, false)
-	if opts.Marks {
+	// draw fill
+	if !opts.NoFill {
+		fill := lg.Copy()
+		fill.ReduceLines(true)
+		if !opts.Marks {
+			gc.SetColor(opts.FillColor)
+		} else {
+			gc.SetColor(color.NRGBA{0, 0, 0, 0x11})
+		}
+		fill.DrawToContext(gc, false)
 		gc.Fill()
 	}
-	stroke.DrawToContext(gc, opts.Marks)
-	if !opts.Marks {
+	// draw stroke
+	if !opts.NoStroke {
+		stroke := lg.Copy()
+		if opts.Marks {
+			stroke.ReduceLines(true)
+		} else {
+			stroke.RemoveEdges()
+			gc.SetLineWidth(opts.LineWidth)
+		}
+		gc.SetColor(opts.StrokeColor)
+		stroke.DrawToContext(gc, false)
 		gc.Stroke()
 	}
-	return img
 
+	return img
 }
