@@ -2,6 +2,7 @@ package marching
 
 import (
 	"bytes"
+	"image/color"
 	"image/png"
 	"io/ioutil"
 	"testing"
@@ -63,16 +64,13 @@ func TestGrid(t *testing.T) {
 				}
 			}
 	*/
-	img := grid.Image(1000, 500, &ImageOptions{})
-	/*
-			Marks:       true,
-			FillColor:   color.NRGBA{0xff, 0, 0, 0xff},
-			StrokeColor: color.NRGBA{0, 0, 0, 0xff},
-			LineWidth:   10,
-			ExpandEdges: true,
-			Spline:      1.5,
-		})
-	*/
+	img := grid.Image(1000, 500, &ImageOptions{
+		Marks:       true,
+		FillColor:   color.NRGBA{0xff, 0, 0, 0xff},
+		StrokeColor: color.NRGBA{0, 0, 0, 0xff},
+		LineWidth:   10,
+		ExpandEdges: true,
+	})
 	println(time.Now().Sub(start).String())
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
@@ -80,3 +78,16 @@ func TestGrid(t *testing.T) {
 	}
 	ioutil.WriteFile("testgrid.png", buf.Bytes(), 0600)
 }
+
+/*
+func TestSpline(t *testing.T) {
+	X := []float64{
+		0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+	}
+	Y := []float64{
+		5, 20, 10, 13, 4, 1, 8, 12, 14, 9,
+	}
+	s := spline.Spline{}
+
+}
+*/
