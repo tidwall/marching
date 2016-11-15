@@ -106,8 +106,8 @@ func newLineGatherer() *lineGatherer {
 	return &lineGatherer{}
 }
 
-func (lg *lineGatherer) appendLines(i, j int, reverse bool) {
-	lg.lines[i].points = append(lg.lines[i].points, lg.lines[j].points...)
+func (lg *lineGatherer) appendLines(i, j int) {
+	lg.lines[i].points = append(lg.lines[i].points, lg.lines[j].points[1:]...)
 	lg.lines = append(lg.lines[:j], lg.lines[j+1:]...)
 }
 
@@ -139,20 +139,21 @@ again:
 				continue
 			}
 			if lg.lines[j].first().veryClose(lg.lines[i].last()) {
-				// move j to end of i
-				lg.appendLines(i, j, false)
+				lg.appendLines(i, j)
 				goto again
 			}
 			if lg.lines[j].last().veryClose(lg.lines[i].first()) {
-				// move i to end of j
-				lg.appendLines(j, i, false)
+				lg.appendLines(j, i)
 				goto again
 			}
-			if lg.lines[j].first().veryClose(lg.lines[i].first()) {
-				panic("Reduce A")
-			}
-			if lg.lines[j].last().veryClose(lg.lines[i].last()) {
-				panic("Reduce B")
+			if lg.lines[j].last().veryClose(lg.lines[i].last()) ||
+				lg.lines[j].first().veryClose(lg.lines[i].first()) {
+				// reverse the line and try again
+				s := lg.lines[j].points
+				for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+					s[i], s[j] = s[j], s[i]
+				}
+				goto again
 			}
 		}
 	}
@@ -376,7 +377,12 @@ func (grid *Grid) Image(width, height int, opts *ImageOptions) *image.RGBA {
 	gc := gg.NewContextForRGBA(img)
 
 	if opts.Marks {
-		rp := widthf / 256
+		var rp float64
+		if widthf < heightf {
+			rp = widthf / 256
+		} else {
+			rp = heightf / 256
+		}
 		// draw background
 		gc.Clear()
 		gc.SetColor(color.White)
@@ -500,9 +506,9 @@ func (grid *Grid) Image(width, height int, opts *ImageOptions) *image.RGBA {
 		stroke.ReduceLines(true)
 	}
 
-	//fill.DrawToContext(gc, false)
+	fill.DrawToContext(gc, false)
 	if opts.Marks {
-		//	gc.Fill()
+		gc.Fill()
 	}
 	stroke.DrawToContext(gc, opts.Marks)
 	if !opts.Marks {
