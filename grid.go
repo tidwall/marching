@@ -1,14 +1,5 @@
 package marching
 
-import (
-	"fmt"
-	"image"
-	"image/color"
-	"math"
-
-	"github.com/fogleman/gg"
-)
-
 type Case byte
 
 type Cell struct {
@@ -22,49 +13,68 @@ type Grid struct {
 	Height int
 }
 
-func NewGrid(values []float64, width, height int, level float64) *Grid {
+func NewGrid(values []float64, width, height int, level float64, complexity int) *Grid {
 	if len(values) != width*height {
 		panic("number of values are not equal to width multiplied by height")
 	}
 	if width < 2 || height < 2 {
 		panic("width or height are not greater than or equal to two")
 	}
-	cells := make([]Cell, (width-1)*(height-1))
+	if complexity < 0 {
+		panic("invalid complexity")
+	}
+	cmplx := uint(complexity)
+	gwidth := (width - 1) << cmplx
+	gheight := (height - 1) << cmplx
+
+	cells := make([]Cell, gwidth*gheight)
 	var j int
-	for y := 0; y < height-1; y++ {
-		for x := 0; x < width-1; x++ {
+	for y := 0; y < gheight; y++ {
+		for x := 0; x < gwidth; x++ {
+			vals := [4]float64{
+				values[((y>>cmplx)+0)*width+((x>>cmplx)+0)],
+				values[((y>>cmplx)+0)*width+((x>>cmplx)+1)],
+				values[((y>>cmplx)+1)*width+((x>>cmplx)+1)],
+				values[((y>>cmplx)+1)*width+((x>>cmplx)+0)],
+			}
+			if complexity > 0 {
+				rx := x % (1 << cmplx)
+				ry := y % (1 << cmplx)
+				sx := float64(rx) / float64(int(1<<cmplx))
+				sy := float64(ry) / float64(int(1<<cmplx))
+				ex := sx + 1/float64(int(1<<cmplx))
+				ey := sy + 1/float64(int(1<<cmplx))
+				vals = [4]float64{
+					bilinearInterpolation(vals, sx, sy),
+					bilinearInterpolation(vals, ex, sy),
+					bilinearInterpolation(vals, ex, ey),
+					bilinearInterpolation(vals, sx, ey),
+				}
+			}
+			center := bilinearInterpolation(vals, 0.5, 0.5)
 			var cell Cell
-			// top-left
-			if values[y*width+x] < level {
-				cell.Case |= 0x8
+			for i := 0; i < 4; i++ {
+				if vals[i] < level {
+					cell.Case |= 1 << uint(4-i-1)
+				}
 			}
-			// top-right
-			if values[y*width+x+1] < level {
-				cell.Case |= 0x4
-			}
-			// bottom-right
-			if values[(y+1)*width+x+1] < level {
-				cell.Case |= 0x2
-			}
-			// bottom-left
-			if values[(y+1)*width+x] < level {
-				cell.Case |= 0x1
-			}
-			if (values[y*width+x]+values[y*width+x+1]+
-				values[(y+1)*width+x+1]+values[(y+1)*width+x])/4 >= level {
-				cell.CenterAbove = true
-			}
+			cell.CenterAbove = center >= level
 			cells[j] = cell
 			j++
 		}
 	}
 	return &Grid{
 		Cells:  cells,
-		Width:  width - 1,
-		Height: height - 1,
+		Width:  gwidth,
+		Height: gheight,
 	}
 }
 
+func bilinearInterpolation(vals [4]float64, x, y float64) float64 {
+	return vals[3]*(1-x)*y + vals[2]*x*y + vals[0]*(1-x)*(1-y) + vals[1]*x*(1-y)
+}
+
+/*
 type ImageOptions struct {
 	//Rounded     bool
 	Marks       bool
@@ -601,3 +611,4 @@ func (grid *Grid) drawMarksGG(img *image.RGBA, rp, widthf, heightf float64) {
 	gc.SetColor(color.RGBA{0x1b, 0xa3, 0xe5, 0xff})
 	gc.SetLineWidth(rp * 6)
 }
+*/
