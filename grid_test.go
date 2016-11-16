@@ -35,22 +35,24 @@ var (
 		//1, 1, 3, 1, 1, 1,
 		//2, 1, 1, 1, 1, 2,
 
-		2, 2, 2, 2, 2, 2,
-		2, 1, 1, 1, 1, 2,
-		2, 1, 2, 1, 2, 2,
-		2, 1, 2, 1, 1, 1,
-		2, 1, 1, 2, 1, 2,
-		2, 2, 2, 2, 2, 2,
+		2, 2,
+		1, 1,
 	}
-	testBWidth          = 6
-	testBHeight         = 6
+	testBWidth          = 2
+	testBHeight         = 2
 	testBLevel  float64 = 2
 )
 
 func TestGrid(t *testing.T) {
 	//grid := NewGrid(testAValues, testAWidth, testAHeight, testALevel)
 	start := time.Now()
-	grid := NewGrid(testBValues, testBWidth, testBHeight, testBLevel)
+	values, width, height, level := testBValues, testBWidth, testBHeight, testBLevel
+	grid := NewGrid(values, width, height, level)
+	if len(grid.Cells) != (width-1)*(height-1) {
+		t.Fatalf("expected %v, got %v", (width-1)*(height-1), len(grid.Cells))
+	}
+	println(grid.Cells[0].Case)
+	return
 	/*
 		if len(grid.Cells) != len(testACases) {
 			t.Fatalf("expected %v, got %v", len(testACases), len(grid.Cells))
@@ -69,7 +71,7 @@ func TestGrid(t *testing.T) {
 		FillColor:   color.NRGBA{0xff, 0, 0, 0xff},
 		StrokeColor: color.NRGBA{0, 0, 0, 0xff},
 		LineWidth:   10,
-		ExpandEdges: true,
+		//ExpandEdges: true,
 	})
 	println(time.Now().Sub(start).String())
 	var buf bytes.Buffer

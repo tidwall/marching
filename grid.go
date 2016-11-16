@@ -26,8 +26,8 @@ func NewGrid(values []float64, width, height int, level float64) *Grid {
 	if len(values) != width*height {
 		panic("number of values are not equal to width multiplied by height")
 	}
-	if width <= 2 || height <= 2 {
-		panic("width or height is not greater than zero")
+	if width < 2 || height < 2 {
+		panic("width or height are not greater than or equal to two")
 	}
 	cells := make([]Cell, (width-1)*(height-1))
 	var j int
@@ -220,7 +220,7 @@ func (lg *lineGatherer) DrawToContext(gc *gg.Context, marks bool) {
 			}
 			gc.MoveTo(line.points[0].x, line.points[0].y)
 			for i := 1; i < len(line.points); i++ {
-				//gc.QuadraticTo(line.points[i-1].x, line.points[i-1].y, line.points[i].x, line.points[i].y)
+				//gc.QuadraticTo(line.points[i].x, line.points[i].y, line.points[i+1].x, line.points[i+1].y)
 				gc.LineTo(line.points[i].x, line.points[i].y)
 			}
 			if marks {
@@ -474,7 +474,7 @@ func (grid *Grid) Image(width, height int, opts *ImageOptions) *image.RGBA {
 		} else {
 			gc.SetColor(color.NRGBA{0, 0, 0, 0x11})
 		}
-		fill.DrawToContext(gc, false)
+		fill.DrawToContext(gc, opts.Marks)
 		gc.Fill()
 	}
 	// return img
@@ -489,7 +489,7 @@ func (grid *Grid) Image(width, height int, opts *ImageOptions) *image.RGBA {
 			gc.SetLineWidth(opts.LineWidth)
 		}
 		gc.SetColor(opts.StrokeColor)
-		stroke.DrawToContext(gc, false)
+		stroke.DrawToContext(gc, opts.Marks)
 		gc.Stroke()
 	}
 
