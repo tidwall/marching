@@ -58,7 +58,28 @@ func (lg *lineGatherer) appendLines(i, j int) {
 }
 
 func (lg *lineGatherer) addSegment(ax, ay, bx, by float64, edge, connect bool) {
-	lg.lines = append(lg.lines, line{[]Point{{ax, ay}, {bx, by}}, edge, connect})
+	pa := Point{ax, ay}
+	pb := Point{bx, by}
+
+	for i := range lg.lines {
+		if lg.lines[i].first().veryClose(pa) {
+			lg.lines[i].points = append([]Point{pb}, lg.lines[i].points...)
+			return
+		}
+		if lg.lines[i].first().veryClose(pb) {
+			lg.lines[i].points = append([]Point{pa}, lg.lines[i].points...)
+			return
+		}
+		if lg.lines[i].last().veryClose(pa) {
+			lg.lines[i].points = append(lg.lines[i].points, pb)
+			return
+		}
+		if lg.lines[i].last().veryClose(pb) {
+			lg.lines[i].points = append(lg.lines[i].points, pa)
+			return
+		}
+	}
+	lg.lines = append(lg.lines, line{[]Point{pa, pb}, edge, connect})
 }
 
 func (lg *lineGatherer) reduceLines() {
