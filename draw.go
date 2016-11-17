@@ -210,71 +210,6 @@ func (grid *Grid) drawCell(
 		}
 	}
 }
-func (grid *Grid) Image(width, height int, opts *ImageOptions) *image.RGBA {
-	widthf, heightf := float64(width), float64(height)
-	if opts == nil {
-		opts = &ImageOptions{}
-	}
-	if opts.LineWidth == 0 {
-		opts.LineWidth = 1
-	}
-	if opts.StrokeColor == nil {
-		opts.StrokeColor = color.Black
-	}
-	if opts.FillColor == nil {
-		opts.FillColor = color.NRGBA{0, 0, 0, 0x77}
-	}
-	var rp float64
-	if widthf < heightf {
-		rp = widthf / 256
-	} else {
-		rp = heightf / 256
-	}
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	if opts.Marks {
-		grid.drawMarksGG(img, rp, widthf, heightf)
-	}
-	gc := gg.NewContextForRGBA(img)
-	//return img
-
-	lg := newLineGatherer()
-	for y := 0; y < grid.Height; y++ {
-		for x := 0; x < grid.Width; x++ {
-			cell := grid.Cells[y*grid.Width+x]
-			grid.drawCell(cell, x, y, lg, widthf, heightf, opts)
-		}
-	}
-	lg.drawReduceLines(false)
-	// draw fill
-	if !opts.NoFill {
-		fill := lg.drawCopy()
-		fill.drawReduceLines(true)
-		if !opts.Marks {
-			gc.SetColor(opts.FillColor)
-		} else {
-			gc.SetColor(color.NRGBA{0, 0, 0, 0x11})
-		}
-		fill.DrawToContext(gc, opts.Marks)
-		gc.Fill()
-	}
-	// return img
-	// draw stroke
-	if !opts.NoStroke {
-		stroke := lg.drawCopy()
-		if opts.Marks {
-			stroke.drawReduceLines(true)
-			gc.SetLineWidth(opts.LineWidth)
-		} else {
-			stroke.drawRemoveEdges()
-			gc.SetLineWidth(opts.LineWidth)
-		}
-		gc.SetColor(opts.StrokeColor)
-		stroke.DrawToContext(gc, opts.Marks)
-		gc.Stroke()
-	}
-
-	return img
-}
 
 func (grid *Grid) drawMarksGG(img *image.RGBA, rp, widthf, heightf float64) {
 	gc := gg.NewContextForRGBA(img)
@@ -419,7 +354,7 @@ type drawer interface {
 }
 
 func (lg *lineGatherer) DrawLine(ax, ay, bx, by float64, edge, connect bool) {
-	lg.lines = append(lg.lines, line{[]Point{{ax, ay}, {bx, by}}, edge, connect})
+	lg.lines = append(lg.lines, line{[]Point{{ax, ay}, {bx, by}}})
 }
 func (lg *lineGatherer) drawCopy() *lineGatherer {
 	nlg := newLineGatherer()
@@ -431,73 +366,6 @@ func (lg *lineGatherer) drawCopy() *lineGatherer {
 		nlg.lines[i] = nline
 	}
 	return nlg
-}
-
-func (lg *lineGatherer) drawRemoveEdges() {
-	for i := 0; i < len(lg.lines); i++ {
-		if lg.lines[i].edge {
-			lg.lines = append(lg.lines[:i], lg.lines[i+1:]...)
-			i--
-			continue
-		}
-	}
-}
-
-func (lg *lineGatherer) drawReduceLines(edges bool) {
-again1:
-	for i := 0; i < len(lg.lines); i++ {
-		if lg.lines[i].edge && lg.lines[i].connect && len(lg.lines[i].points) == 2 {
-			for j := 0; j < len(lg.lines); j++ {
-				if i != j && lg.lines[j].edge && lg.lines[j].connect && len(lg.lines[j].points) == 2 {
-					if (lg.lines[i].points[0].veryClose(lg.lines[j].points[0]) &&
-						lg.lines[i].points[1].veryClose(lg.lines[j].points[1])) ||
-						(lg.lines[i].points[1].veryClose(lg.lines[j].points[0]) &&
-							lg.lines[i].points[0].veryClose(lg.lines[j].points[1])) {
-						if i < j {
-							lg.lines = append(lg.lines[:j], lg.lines[j+1:]...)
-							lg.lines = append(lg.lines[:i], lg.lines[i+1:]...)
-							goto again1
-						} else {
-							lg.lines = append(lg.lines[:i], lg.lines[i+1:]...)
-							lg.lines = append(lg.lines[:j], lg.lines[j+1:]...)
-							goto again1
-						}
-					}
-				}
-			}
-		}
-	}
-again:
-	for i := 0; i < len(lg.lines); i++ {
-		if !edges && lg.lines[i].edge {
-			continue
-		}
-		for j := 0; j < len(lg.lines); j++ {
-			if i == j {
-				continue
-			}
-			if !edges && lg.lines[j].edge {
-				continue
-			}
-			if lg.lines[j].first().veryClose(lg.lines[i].last()) {
-				lg.appendLines(i, j)
-				goto again
-			}
-			if lg.lines[j].last().veryClose(lg.lines[i].first()) {
-				lg.appendLines(j, i)
-				goto again
-			}
-			if lg.lines[j].last().veryClose(lg.lines[i].last()) ||
-				lg.lines[j].first().veryClose(lg.lines[i].first()) {
-				// reverse the line and try again
-				s := lg.lines[j].points
-				for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
-					s[i], s[j] = s[j], s[i]
-				}
-				goto again
-			}
-		}
-	}
 }
 
 // http://stackoverflow.com/a/1165943/424124

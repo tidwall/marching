@@ -26,6 +26,10 @@ type lineGatherer struct {
 	lines []line
 }
 
+type line struct {
+	points []Point
+}
+
 func (p1 Point) veryClose(p2 Point) bool {
 	const maxRelativeError = 0.00001
 	if p1 == p2 {
@@ -40,12 +44,6 @@ func (p1 Point) veryClose(p2 Point) bool {
 	return true
 }
 
-type line struct {
-	points  []Point
-	edge    bool
-	connect bool
-}
-
 func (l *line) first() Point { return l.points[0] }
 func (l *line) last() Point  { return l.points[len(l.points)-1] }
 func newLineGatherer() *lineGatherer {
@@ -57,7 +55,7 @@ func (lg *lineGatherer) appendLines(i, j int) {
 	lg.lines = append(lg.lines[:j], lg.lines[j+1:]...)
 }
 
-func (lg *lineGatherer) addSegment(ax, ay, bx, by float64, edge, connect bool) {
+func (lg *lineGatherer) addSegment(ax, ay, bx, by float64) {
 	pa := Point{ax, ay}
 	pb := Point{bx, by}
 
@@ -79,33 +77,10 @@ func (lg *lineGatherer) addSegment(ax, ay, bx, by float64, edge, connect bool) {
 			return
 		}
 	}
-	lg.lines = append(lg.lines, line{[]Point{pa, pb}, edge, connect})
+	lg.lines = append(lg.lines, line{[]Point{pa, pb}})
 }
 
 func (lg *lineGatherer) reduceLines() {
-connectEdges:
-	for i := 0; i < len(lg.lines); i++ {
-		if lg.lines[i].edge && lg.lines[i].connect && len(lg.lines[i].points) == 2 {
-			for j := 0; j < len(lg.lines); j++ {
-				if i != j && lg.lines[j].edge && lg.lines[j].connect && len(lg.lines[j].points) == 2 {
-					if (lg.lines[i].points[0].veryClose(lg.lines[j].points[0]) &&
-						lg.lines[i].points[1].veryClose(lg.lines[j].points[1])) ||
-						(lg.lines[i].points[1].veryClose(lg.lines[j].points[0]) &&
-							lg.lines[i].points[0].veryClose(lg.lines[j].points[1])) {
-						if i < j {
-							lg.lines = append(lg.lines[:j], lg.lines[j+1:]...)
-							lg.lines = append(lg.lines[:i], lg.lines[i+1:]...)
-							goto connectEdges
-						} else {
-							lg.lines = append(lg.lines[:i], lg.lines[i+1:]...)
-							lg.lines = append(lg.lines[:j], lg.lines[j+1:]...)
-							goto connectEdges
-						}
-					}
-				}
-			}
-		}
-	}
 connectSegments:
 	for i := 0; i < len(lg.lines); i++ {
 		for j := 0; j < len(lg.lines); j++ {
@@ -131,6 +106,7 @@ connectSegments:
 			}
 		}
 	}
+
 	// close paths
 	for i := 0; i < len(lg.lines); i++ {
 		// make sure that the paths close at exact points
@@ -178,45 +154,45 @@ func (lg *lineGatherer) addCell(
 	case 0:
 
 	case 1:
-		lg.addSegment(bottomx, bottomy, leftx, lefty, false, false)
+		lg.addSegment(bottomx, bottomy, leftx, lefty)
 	case 2:
-		lg.addSegment(rightx, righty, bottomx, bottomy, false, false)
+		lg.addSegment(rightx, righty, bottomx, bottomy)
 	case 3:
-		lg.addSegment(rightx, righty, leftx, lefty, false, false)
+		lg.addSegment(rightx, righty, leftx, lefty)
 	case 4:
-		lg.addSegment(topx, topy, rightx, righty, false, false)
+		lg.addSegment(topx, topy, rightx, righty)
 	case 5:
 		if !cell.CenterAbove {
-			lg.addSegment(topx, topy, rightx, righty, false, false)
-			lg.addSegment(bottomx, bottomy, leftx, lefty, false, false)
+			lg.addSegment(topx, topy, rightx, righty)
+			lg.addSegment(bottomx, bottomy, leftx, lefty)
 		} else {
-			lg.addSegment(bottomx, bottomy, rightx, righty, false, false)
-			lg.addSegment(topx, topy, leftx, lefty, false, false)
+			lg.addSegment(bottomx, bottomy, rightx, righty)
+			lg.addSegment(topx, topy, leftx, lefty)
 		}
 	case 6:
-		lg.addSegment(topx, topy, bottomx, bottomy, false, false)
+		lg.addSegment(topx, topy, bottomx, bottomy)
 	case 7:
-		lg.addSegment(topx, topy, leftx, lefty, false, false)
+		lg.addSegment(topx, topy, leftx, lefty)
 	case 8:
-		lg.addSegment(leftx, lefty, topx, topy, false, false)
+		lg.addSegment(leftx, lefty, topx, topy)
 	case 9:
-		lg.addSegment(bottomx, bottomy, topx, topy, false, false)
+		lg.addSegment(bottomx, bottomy, topx, topy)
 	case 10:
 		if !cell.CenterAbove {
-			lg.addSegment(bottomx, bottomy, rightx, righty, false, false)
-			lg.addSegment(topx, topy, leftx, lefty, false, false)
+			lg.addSegment(bottomx, bottomy, rightx, righty)
+			lg.addSegment(topx, topy, leftx, lefty)
 		} else {
-			lg.addSegment(rightx, righty, topx, topy, false, false)
-			lg.addSegment(leftx, lefty, bottomx, bottomy, false, false)
+			lg.addSegment(rightx, righty, topx, topy)
+			lg.addSegment(leftx, lefty, bottomx, bottomy)
 		}
 	case 11:
-		lg.addSegment(rightx, righty, topx, topy, false, false)
+		lg.addSegment(rightx, righty, topx, topy)
 	case 12:
-		lg.addSegment(leftx, lefty, rightx, righty, false, false)
+		lg.addSegment(leftx, lefty, rightx, righty)
 	case 13:
-		lg.addSegment(bottomx, bottomy, rightx, righty, false, false)
+		lg.addSegment(bottomx, bottomy, rightx, righty)
 	case 14:
-		lg.addSegment(leftx, lefty, bottomx, bottomy, false, false)
+		lg.addSegment(leftx, lefty, bottomx, bottomy)
 	case 15:
 	}
 
@@ -228,10 +204,10 @@ func (lg *lineGatherer) addCell(
 			bx := ax + cellw
 			by := ay
 			if x == 0 {
-				lg.addSegment(ax+cellw/2, ay+cellh/2, ax+cellw/2, ay, true, false)
-				lg.addSegment(ax+cellw/2, ay, bx, by, true, false)
+				lg.addSegment(ax+cellw/2, ay+cellh/2, ax+cellw/2, ay)
+				lg.addSegment(ax+cellw/2, ay, bx, by)
 			} else {
-				lg.addSegment(ax, ay, bx, by, true, false)
+				lg.addSegment(ax, ay, bx, by)
 			}
 		}
 	} else if y == gridHeight-1 {
@@ -242,10 +218,10 @@ func (lg *lineGatherer) addCell(
 			bx := ax - cellw
 			by := ay
 			if x == gridWidth-1 {
-				lg.addSegment(ax-cellw/2, ay-cellh/2, ax-cellw/2, ay, true, false)
-				lg.addSegment(ax-cellw/2, ay, bx, by, true, false)
+				lg.addSegment(ax-cellw/2, ay-cellh/2, ax-cellw/2, ay)
+				lg.addSegment(ax-cellw/2, ay, bx, by)
 			} else {
-				lg.addSegment(ax, ay, bx, by, true, false)
+				lg.addSegment(ax, ay, bx, by)
 			}
 		}
 	}
@@ -257,10 +233,10 @@ func (lg *lineGatherer) addCell(
 			bx := ax
 			by := ay - cellh
 			if y == gridHeight-1 {
-				lg.addSegment(ax+cellw/2, ay-cellh/2, ax, ay-cellh/2, true, false)
-				lg.addSegment(ax, ay-cellh/2, bx, by, true, false)
+				lg.addSegment(ax+cellw/2, ay-cellh/2, ax, ay-cellh/2)
+				lg.addSegment(ax, ay-cellh/2, bx, by)
 			} else {
-				lg.addSegment(ax, ay, bx, by, true, false)
+				lg.addSegment(ax, ay, bx, by)
 			}
 		}
 	} else if x == gridWidth-1 {
@@ -271,10 +247,10 @@ func (lg *lineGatherer) addCell(
 			bx := ax
 			by := ay + cellh
 			if y == 0 {
-				lg.addSegment(ax-cellw/2, ay+cellh/2, ax, ay+cellh/2, true, false)
-				lg.addSegment(ax, ay+cellh/2, bx, by, true, false)
+				lg.addSegment(ax-cellw/2, ay+cellh/2, ax, ay+cellh/2)
+				lg.addSegment(ax, ay+cellh/2, bx, by)
 			} else {
-				lg.addSegment(ax, ay, bx, by, true, false)
+				lg.addSegment(ax, ay, bx, by)
 			}
 		}
 	}
