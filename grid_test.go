@@ -1,6 +1,10 @@
 package marching
 
 import (
+	"image"
+	"image/draw"
+	"image/png"
+	"os"
 	"testing"
 	"time"
 )
@@ -24,33 +28,65 @@ var (
 	}
 
 	testBValues = []float64{
-		//2, 1, 3, 3, 1, 3,
-		//1, 1, 3, 3, 1, 1,
-		//1, 3, 1, 3, 3, 1,
-		//3, 1, 3, 1, 3, 1,
-		//1, 1, 3, 1, 1, 1,
-		//2, 1, 1, 1, 1, 2,
-
-		1, 1,
-		1, 2,
+		2, 1, 3, 3, 1, 3,
+		1, 1, 3, 3, 1, 1,
+		1, 3, 0, 3, 3, 1,
+		3, 1, 3, 1, 3, 1,
+		1, 1, 3, 1, 1, 1,
+		2, 1, 1, 1, 1, 2,
 	}
-	testBWidth          = 2
-	testBHeight         = 2
+	testBWidth          = 6
+	testBHeight         = 6
 	testBLevel  float64 = 2
 )
 
+func TestTerrarium(t *testing.T) {
+	f, err := os.Open("12_770_1644-12_774_1647.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	img1, err := png.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	img := image.NewRGBA(img1.Bounds())
+	draw.Draw(img, img.Bounds(), img1, image.ZP, draw.Src)
+	width, height := img.Bounds().Size().X, img.Bounds().Size().Y
+	values := make([]float64, width*height)
+	for i, j := 0, 0; i < len(img.Pix); i, j = i+4, j+1 {
+		red := float64(img.Pix[i+0])
+		green := float64(img.Pix[i+1])
+		blue := float64(img.Pix[i+2])
+		meters := (red*256 + green + blue/256) - 32768
+		values[j] = meters
+	}
+	start := time.Now()
+	grid := NewGrid(values, width, height, 600, 0)
+	paths := grid.Paths(float64(width), float64(height), nil)
+	println(time.Now().Sub(start).String())
+	if err := savePathsPNG(paths, width, height, "terrarium.png"); err != nil {
+		t.Fatal(err)
+	}
+	return
+}
 func TestGrid(t *testing.T) {
 	//grid := NewGrid(testAValues, testAWidth, testAHeight, testALevel)
 	start := time.Now()
 	values, width, height, level := testBValues, testBWidth, testBHeight, testBLevel
-	complexity := 1
+	complexity := 0
 	grid := NewGrid(values, width, height, level, complexity)
+	paths := grid.Paths(500, 500, nil)
+	println(time.Now().Sub(start).String())
+	if err := savePathsPNG(paths, 500, 500, "testpaths.png"); err != nil {
+		t.Fatal(err)
+	}
+	return
 	//if len(grid.Cells) != (width-1)*(height-1) {
 	//	t.Fatalf("expected %v, got %v", (width-1)*(height-1), len(grid.Cells))
 	//}
-	println(grid.Cells[0].Case)
-	println(time.Now().Sub(start).String())
-	return
+	println(grid.Cells[0].Case, len(grid.Cells))
+	//	return
 	/*
 		if len(grid.Cells) != len(testACases) {
 			t.Fatalf("expected %v, got %v", len(testACases), len(grid.Cells))
@@ -65,11 +101,16 @@ func TestGrid(t *testing.T) {
 			}
 	*/
 	/*
-		img := grid.Image(1000, 500, &ImageOptions{
-			Marks:       true,
-			FillColor:   color.NRGBA{0xff, 0, 0, 0xff},
-			StrokeColor: color.NRGBA{0, 0, 0, 0xff},
-			LineWidth:   10,
+		paths := grid.Paths(500, 500, nil)
+		println(time.Now().Sub(start).String())
+		println(paths)
+		return
+		img := grid.Image(500, 500, &ImageOptions{
+			Marks: true, //false, //true,
+			//FillColor:   color.NRGBA{0xff, 0, 0, 0xff},
+			//StrokeColor: color.NRGBA{0, 0, 0, 0xff},
+			//NoStroke:    true,
+			//LineWidth: 10,
 			//ExpandEdges: true,
 		})
 		println(time.Now().Sub(start).String())
