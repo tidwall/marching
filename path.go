@@ -81,32 +81,43 @@ func (lg *lineGatherer) addSegment(ax, ay, bx, by float64) {
 }
 
 func (lg *lineGatherer) reduceLines() {
-connectSegments:
-	for i := 0; i < len(lg.lines); i++ {
-		for j := 0; j < len(lg.lines); j++ {
-			if i == j {
-				continue
-			}
-			if lg.lines[j].first().veryClose(lg.lines[i].last()) {
-				lg.appendLines(i, j)
-				goto connectSegments
-			}
-			if lg.lines[j].last().veryClose(lg.lines[i].first()) {
-				lg.appendLines(j, i)
-				goto connectSegments
-			}
-			if lg.lines[j].last().veryClose(lg.lines[i].last()) ||
-				lg.lines[j].first().veryClose(lg.lines[i].first()) {
-				// reverse the line and try again
-				s := lg.lines[j].points
-				for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
-					s[i], s[j] = s[j], s[i]
+	for {
+		var connectionMade bool
+		for i := 0; i < len(lg.lines); i++ {
+			for j := 0; j < len(lg.lines); j++ {
+				if i == j {
+					continue
 				}
-				goto connectSegments
+				if lg.lines[j].first().veryClose(lg.lines[i].last()) {
+					lg.appendLines(i, j)
+					connectionMade = true
+					j--
+					continue
+				}
+				if lg.lines[j].last().veryClose(lg.lines[i].first()) {
+					lg.appendLines(j, i)
+					connectionMade = true
+					i--
+					break
+				}
+				if lg.lines[j].last().veryClose(lg.lines[i].last()) ||
+					lg.lines[j].first().veryClose(lg.lines[i].first()) {
+					// reverse the line and try again
+					s := lg.lines[j].points
+					for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+						s[i], s[j] = s[j], s[i]
+					}
+					connectionMade = true
+					j--
+					continue
+				}
 			}
 		}
+		if !connectionMade {
+			break
+		}
 	}
-
+	println(len(lg.lines))
 	// close paths
 	for i := 0; i < len(lg.lines); i++ {
 		// make sure that the paths close at exact points
