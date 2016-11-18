@@ -1,9 +1,6 @@
 package marching
 
-import (
-	"math"
-	"time"
-)
+import "time"
 
 type Point struct {
 	X, Y float64
@@ -12,13 +9,15 @@ type PathOptions struct{}
 
 // Paths convert the grid into a series of closed paths.
 func (grid *Grid) Paths(width, height float64, opts *PathOptions) [][]Point {
-	lg := newLineGatherer(width, height)
-	lg.addGrid(grid, width, height)
+	width2f := float64((grid.Width + 1) * 2)
+	height2f := float64((grid.Height + 1) * 2)
+	lg := newLineGatherer(int(width2f), int(height2f))
+	lg.addGrid(grid)
 	paths := make([][]Point, len(lg.lines))
 	for i, line := range lg.lines {
 		path := make([]Point, len(line.points))
 		for j, point := range line.points {
-			path[j] = Point{point.x, point.y}
+			path[j] = Point{float64(point.x) / width2f * width, float64(point.y) / height2f * height}
 		}
 		paths[i] = path
 	}
@@ -26,29 +25,15 @@ func (grid *Grid) Paths(width, height float64, opts *PathOptions) [][]Point {
 }
 
 type lineGatherer struct {
-	lines []*line
+	lines         []line
+	width, height int
 }
 type point struct {
-	x, y float64
+	x, y int
 }
 
 type line struct {
-	points []*point
-}
-
-const maxRelativeError = 0.00001
-
-func (p1 *point) veryClose(p2 *point) bool {
-	if *p1 == *p2 {
-		return true
-	}
-	if math.Abs((p1.x-p2.x)/p2.x) > maxRelativeError {
-		return false
-	}
-	if math.Abs((p1.y-p2.y)/p2.y) > maxRelativeError {
-		return false
-	}
-	return true
+	points []point
 }
 
 var (
@@ -56,10 +41,13 @@ var (
 	ctxEnd   interface{} = "end"
 )
 
-func (l *line) first() *point { return l.points[0] }
-func (l *line) last() *point  { return l.points[len(l.points)-1] }
-func newLineGatherer(width, height float64) *lineGatherer {
-	return &lineGatherer{}
+func (l *line) first() point { return l.points[0] }
+func (l *line) last() point  { return l.points[len(l.points)-1] }
+func newLineGatherer(width, height int) *lineGatherer {
+	return &lineGatherer{
+		width:  width,
+		height: height,
+	}
 }
 
 func (lg *lineGatherer) appendLines(i, j int) {
@@ -67,7 +55,7 @@ func (lg *lineGatherer) appendLines(i, j int) {
 	lg.lines = append(lg.lines[:j], lg.lines[j+1:]...)
 }
 
-func (lg *lineGatherer) addSegment(ax, ay, bx, by float64) {
+func (lg *lineGatherer) addSegment(ax, ay, bx, by int) {
 	/*
 		pa := Point{ax, ay}
 		pb := Point{bx, by}
@@ -97,7 +85,7 @@ func (lg *lineGatherer) addSegment(ax, ay, bx, by float64) {
 			}
 		}
 	*/
-	lg.lines = append(lg.lines, &line{[]*point{&point{ax, ay}, &point{bx, by}}})
+	lg.lines = append(lg.lines, line{[]point{{ax, ay}, {bx, by}}})
 }
 
 func (lg *lineGatherer) reduceLines() {
@@ -108,20 +96,20 @@ func (lg *lineGatherer) reduceLines() {
 				if i == j {
 					continue
 				}
-				if lg.lines[j].first().veryClose(lg.lines[i].last()) {
+				if lg.lines[j].first() == lg.lines[i].last() {
 					lg.appendLines(i, j)
 					connectionMade = true
 					j--
 					continue
 				}
-				if lg.lines[j].last().veryClose(lg.lines[i].first()) {
+				if lg.lines[j].last() == lg.lines[i].first() {
 					lg.appendLines(j, i)
 					connectionMade = true
 					i--
 					break
 				}
-				if lg.lines[j].last().veryClose(lg.lines[i].last()) ||
-					lg.lines[j].first().veryClose(lg.lines[i].first()) {
+				if lg.lines[j].last() == lg.lines[i].last() ||
+					lg.lines[j].first() == lg.lines[i].first() {
 					// reverse the line and try again
 					s := lg.lines[j].points
 					for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
@@ -142,7 +130,7 @@ func (lg *lineGatherer) reduceLines() {
 		// make sure that the paths close at exact points
 		if lg.lines[i].first() != lg.lines[i].last() {
 			// the path does not close
-			if lg.lines[i].first().veryClose(lg.lines[i].last()) {
+			if lg.lines[i].first() == lg.lines[i].last() {
 				// the starting and ending points of the path are very close,
 				// just switch assign the first to the last.
 				lg.lines[i].points[len(lg.lines[i].points)-1] = lg.lines[i].points[0]
@@ -161,23 +149,23 @@ type lineKey struct {
 
 func (lg *lineGatherer) addCell(
 	cell Cell,
-	x, y, width, height float64,
-	gridWidth, gridHeight float64,
+	x, y, width, height int,
+	gridWidth, gridHeight int,
 ) {
-	var offsetx, offsety float64
+
 	var cellw = width / gridWidth
 	var cellh = height / gridHeight
-	var leftx = offsetx + cellw*x
-	var lefty = offsety + cellh*y + cellh*0.5
+	var leftx = cellw * x
+	var lefty = cellh*y + cellh/2
 
-	var rightx = offsetx + cellw*x + cellw
-	var righty = offsety + cellh*y + cellh*0.5
-	var topx = offsetx + cellw*x + cellw*0.5
-	var topy = offsety + cellh*y
-	var bottomx = offsetx + cellw*x + cellw*0.5
-	var bottomy = offsety + cellh*y + cellh
-	//var centerx = offsetx + cellw*float64(x) + cellw*0.5
-	//var centery = offsety + cellh*float64(y) + cellh*0.5
+	var rightx = cellw*x + cellw
+	var righty = cellh*y + cellh/2
+	var topx = cellw*x + cellw/2
+	var topy = cellh * y
+	var bottomx = cellw*x + cellw/2
+	var bottomy = cellh*y + cellh
+	//var centerx =  cellw*float64(x) + cellw*0.5
+	//var centery =  cellh*float64(y) + cellh*0.5
 	if cell.Case != 0 && cell.Case != 15 {
 		switch cell.Case {
 		default:
@@ -228,8 +216,8 @@ func (lg *lineGatherer) addCell(
 	if y == 0 {
 		// top
 		if cell.Case&0x8 == 0 {
-			ax := offsetx + cellw*x - cellw/2
-			ay := offsety
+			ax := cellw*x - cellw/2
+			ay := 0
 			bx := ax + cellw
 			by := ay
 			if x == 0 {
@@ -242,8 +230,8 @@ func (lg *lineGatherer) addCell(
 	} else if y == gridHeight-1 {
 		// bottom
 		if cell.Case&0x2 == 0 {
-			ax := offsetx + cellw*(x+1) + cellw/2
-			ay := offsety + gridHeight*cellh
+			ax := cellw*(x+1) + cellw/2
+			ay := gridHeight * cellh
 			bx := ax - cellw
 			by := ay
 			if x == gridWidth-1 {
@@ -257,8 +245,8 @@ func (lg *lineGatherer) addCell(
 	if x == 0 {
 		// left
 		if cell.Case&0x1 == 0 {
-			ax := offsetx
-			ay := offsety + cellh*(y+1) + cellh/2
+			ax := 0
+			ay := cellh*(y+1) + cellh/2
 			bx := ax
 			by := ay - cellh
 			if y == gridHeight-1 {
@@ -271,8 +259,8 @@ func (lg *lineGatherer) addCell(
 	} else if x == gridWidth-1 {
 		// right
 		if cell.Case&0x4 == 0 {
-			ax := offsetx + gridWidth*cellw
-			ay := offsety + cellh*y - cellh/2
+			ax := gridWidth * cellw
+			ay := cellh*y - cellh/2
 			bx := ax
 			by := ay + cellh
 			if y == 0 {
@@ -285,14 +273,14 @@ func (lg *lineGatherer) addCell(
 	}
 }
 
-func (lg *lineGatherer) addGrid(grid *Grid, width, height float64) {
+func (lg *lineGatherer) addGrid(grid *Grid) {
 	start := time.Now()
-	gwidth, gheight := float64(grid.Width), float64(grid.Height)
+	gwidth, gheight := grid.Width, grid.Height
 
 	for y := 0; y < grid.Height; y++ {
 		for x := 0; x < grid.Width; x++ {
 			cell := grid.Cells[y*grid.Width+x]
-			lg.addCell(cell, float64(x), float64(y), width, height, gwidth, gheight)
+			lg.addCell(cell, x, y, lg.width, lg.height, gwidth, gheight)
 		}
 	}
 	println("** addCells:", time.Now().Sub(start).String())
