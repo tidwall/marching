@@ -20,8 +20,6 @@ func (grid *Grid) Paths(width, height float64, opts *PathOptions) [][]Point {
 	return paths
 }
 
-//////////////////////////////
-// lineGatherer
 type lineGatherer struct {
 	lines []line
 }
@@ -58,7 +56,6 @@ func (lg *lineGatherer) appendLines(i, j int) {
 func (lg *lineGatherer) addSegment(ax, ay, bx, by float64) {
 	pa := Point{ax, ay}
 	pb := Point{bx, by}
-
 	for i := range lg.lines {
 		if lg.lines[i].first().veryClose(pa) {
 			lg.lines[i].points = append([]Point{pb}, lg.lines[i].points...)
@@ -117,7 +114,6 @@ func (lg *lineGatherer) reduceLines() {
 			break
 		}
 	}
-	println(len(lg.lines))
 	// close paths
 	for i := 0; i < len(lg.lines); i++ {
 		// make sure that the paths close at exact points

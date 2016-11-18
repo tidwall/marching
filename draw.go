@@ -66,5 +66,6 @@ func savePathsPNG(paths [][]Point, width, height int, filePath string) error {
 	gc.SetLineWidth(2)
 	gc.SetColor(color.NRGBA{0xCC, 0xAA, 0x88, 0xFF})
 	gc.Stroke()
+
 	return gc.SavePNG(filePath)
 }
