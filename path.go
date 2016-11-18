@@ -24,9 +24,7 @@ func (grid *Grid) Paths(width, height float64, opts *PathOptions) [][]Point {
 }
 
 type lineGatherer struct {
-	lines   []*line
-	trStart *qtree
-	trEnd   *qtree
+	lines []line
 }
 
 type line struct {
@@ -34,12 +32,6 @@ type line struct {
 }
 
 const maxRelativeError = 0.00001
-
-func (p1 Point) expandBounds(p2 Point) (min, max Point) {
-	xval := math.Abs((p1.X-p2.X)/p2.X) * maxRelativeError
-	yval := math.Abs((p1.Y-p2.Y)/p2.Y) * maxRelativeError
-	return Point{p1.X - xval, p1.Y - yval}, Point{p1.X + xval, p1.Y + yval}
-}
 
 func (p1 Point) veryClose(p2 Point) bool {
 	if p1 == p2 {
@@ -62,10 +54,7 @@ var (
 func (l *line) first() Point { return l.points[0] }
 func (l *line) last() Point  { return l.points[len(l.points)-1] }
 func newLineGatherer(width, height float64) *lineGatherer {
-	return &lineGatherer{
-		trStart: newQTree(0, 0, width, height, ctxStart),
-		trEnd:   newQTree(0, 0, width, height, ctxEnd),
-	}
+	return &lineGatherer{}
 }
 
 func (lg *lineGatherer) appendLines(i, j int) {
@@ -74,34 +63,36 @@ func (lg *lineGatherer) appendLines(i, j int) {
 }
 
 func (lg *lineGatherer) addSegment(ax, ay, bx, by float64) {
-	pa := Point{ax, ay}
-	pb := Point{bx, by}
-	if false {
-		mina, maxa := pa.expandBounds(pb)
-		minb, maxb := pb.expandBounds(pa)
+	/*
+		pa := Point{ax, ay}
+		pb := Point{bx, by}
+		if false {
+			mina, maxa := pa.expandBounds(pb)
+			minb, maxb := pb.expandBounds(pa)
 
-		mina, maxa = mina, maxa
-		minb, maxb = minb, maxb
-		for i := range lg.lines {
-			if lg.lines[i].first().veryClose(pa) {
-				lg.lines[i].points = append([]Point{pb}, lg.lines[i].points...)
-				return
-			}
-			if lg.lines[i].first().veryClose(pb) {
-				lg.lines[i].points = append([]Point{pa}, lg.lines[i].points...)
-				return
-			}
-			if lg.lines[i].last().veryClose(pa) {
-				lg.lines[i].points = append(lg.lines[i].points, pb)
-				return
-			}
-			if lg.lines[i].last().veryClose(pb) {
-				lg.lines[i].points = append(lg.lines[i].points, pa)
-				return
+			mina, maxa = mina, maxa
+			minb, maxb = minb, maxb
+			for i := range lg.lines {
+				if lg.lines[i].first().veryClose(pa) {
+					lg.lines[i].points = append([]Point{pb}, lg.lines[i].points...)
+					return
+				}
+				if lg.lines[i].first().veryClose(pb) {
+					lg.lines[i].points = append([]Point{pa}, lg.lines[i].points...)
+					return
+				}
+				if lg.lines[i].last().veryClose(pa) {
+					lg.lines[i].points = append(lg.lines[i].points, pb)
+					return
+				}
+				if lg.lines[i].last().veryClose(pb) {
+					lg.lines[i].points = append(lg.lines[i].points, pa)
+					return
+				}
 			}
 		}
-	}
-	lg.lines = append(lg.lines, &line{[]Point{pa, pb}})
+	*/
+	lg.lines = append(lg.lines, line{[]Point{{ax, ay}, {bx, by}}})
 }
 
 func (lg *lineGatherer) reduceLines() {
@@ -182,53 +173,51 @@ func (lg *lineGatherer) addCell(
 	var bottomy = offsety + cellh*y + cellh
 	//var centerx = offsetx + cellw*float64(x) + cellw*0.5
 	//var centery = offsety + cellh*float64(y) + cellh*0.5
-
-	switch cell.Case {
-	default:
-		panic("invalid case")
-	case 0:
-
-	case 1:
-		lg.addSegment(bottomx, bottomy, leftx, lefty)
-	case 2:
-		lg.addSegment(rightx, righty, bottomx, bottomy)
-	case 3:
-		lg.addSegment(rightx, righty, leftx, lefty)
-	case 4:
-		lg.addSegment(topx, topy, rightx, righty)
-	case 5:
-		if !cell.CenterAbove {
-			lg.addSegment(topx, topy, rightx, righty)
+	if cell.Case != 0 && cell.Case != 15 {
+		switch cell.Case {
+		default:
+			panic("invalid case")
+		case 1:
 			lg.addSegment(bottomx, bottomy, leftx, lefty)
-		} else {
-			lg.addSegment(bottomx, bottomy, rightx, righty)
+		case 2:
+			lg.addSegment(rightx, righty, bottomx, bottomy)
+		case 3:
+			lg.addSegment(rightx, righty, leftx, lefty)
+		case 4:
+			lg.addSegment(topx, topy, rightx, righty)
+		case 5:
+			if !cell.CenterAbove {
+				lg.addSegment(topx, topy, rightx, righty)
+				lg.addSegment(bottomx, bottomy, leftx, lefty)
+			} else {
+				lg.addSegment(bottomx, bottomy, rightx, righty)
+				lg.addSegment(topx, topy, leftx, lefty)
+			}
+		case 6:
+			lg.addSegment(topx, topy, bottomx, bottomy)
+		case 7:
 			lg.addSegment(topx, topy, leftx, lefty)
-		}
-	case 6:
-		lg.addSegment(topx, topy, bottomx, bottomy)
-	case 7:
-		lg.addSegment(topx, topy, leftx, lefty)
-	case 8:
-		lg.addSegment(leftx, lefty, topx, topy)
-	case 9:
-		lg.addSegment(bottomx, bottomy, topx, topy)
-	case 10:
-		if !cell.CenterAbove {
-			lg.addSegment(bottomx, bottomy, rightx, righty)
-			lg.addSegment(topx, topy, leftx, lefty)
-		} else {
+		case 8:
+			lg.addSegment(leftx, lefty, topx, topy)
+		case 9:
+			lg.addSegment(bottomx, bottomy, topx, topy)
+		case 10:
+			if !cell.CenterAbove {
+				lg.addSegment(bottomx, bottomy, rightx, righty)
+				lg.addSegment(topx, topy, leftx, lefty)
+			} else {
+				lg.addSegment(rightx, righty, topx, topy)
+				lg.addSegment(leftx, lefty, bottomx, bottomy)
+			}
+		case 11:
 			lg.addSegment(rightx, righty, topx, topy)
+		case 12:
+			lg.addSegment(leftx, lefty, rightx, righty)
+		case 13:
+			lg.addSegment(bottomx, bottomy, rightx, righty)
+		case 14:
 			lg.addSegment(leftx, lefty, bottomx, bottomy)
 		}
-	case 11:
-		lg.addSegment(rightx, righty, topx, topy)
-	case 12:
-		lg.addSegment(leftx, lefty, rightx, righty)
-	case 13:
-		lg.addSegment(bottomx, bottomy, rightx, righty)
-	case 14:
-		lg.addSegment(leftx, lefty, bottomx, bottomy)
-	case 15:
 	}
 
 	if y == 0 {

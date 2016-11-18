@@ -69,8 +69,7 @@ func NewGrid(values []float64, width, height int, level float64, complexity int)
 			if vals[3] < level {
 				cell.Case |= 0x1
 			}
-			center := (vals[0] + vals[1] + vals[2] + vals[3]) / 4
-			cell.CenterAbove = center >= level
+			cell.CenterAbove = (vals[0]+vals[1]+vals[2]+vals[3])/4 >= level
 			cells[j] = cell
 			j++
 		}
