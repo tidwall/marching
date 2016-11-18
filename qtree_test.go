@@ -26,6 +26,7 @@ func TestQTree(t *testing.T) {
 	var dur time.Duration
 	var scount int
 
+	dur = dur
 	//
 	start = time.Now()
 	for i := 0; i < len(points); i++ {
