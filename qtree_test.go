@@ -1,7 +1,6 @@
 package marching
 
 import (
-	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -33,7 +32,7 @@ func TestQTree(t *testing.T) {
 		tr.insert(points[i])
 	}
 	dur = time.Now().Sub(start)
-	fmt.Printf("inserted %v items in %v\n", len(points), dur)
+	//	fmt.Printf("inserted %v items in %v\n", len(points), dur)
 
 	//
 	start = time.Now()
@@ -41,7 +40,7 @@ func TestQTree(t *testing.T) {
 		t.Fatalf("expected %v, got %v", len(points), tr.count())
 	}
 	dur = time.Now().Sub(start)
-	fmt.Printf("counted %v items in %v\n", len(points), dur)
+	//	fmt.Printf("counted %v items in %v\n", len(points), dur)
 
 	// seach middle
 	start = time.Now()
@@ -59,7 +58,7 @@ func TestQTree(t *testing.T) {
 		(scount > len(points)/4+int(float64(len(points)/4)*.05)) {
 		t.Fatalf("expected %v, got %v", len(points)/2, scount)
 	}
-	fmt.Printf("searched %v items in %v\n", scount, dur)
+	//	fmt.Printf("searched %v items in %v\n", scount, dur)
 
 	// remove 50,000
 	start = time.Now()
@@ -70,7 +69,7 @@ func TestQTree(t *testing.T) {
 		}
 	}
 	dur = time.Now().Sub(start)
-	fmt.Printf("removed %v items in %v\n", len(points)/2, dur)
+	//	fmt.Printf("removed %v items in %v\n", len(points)/2, dur)
 
 	//
 	start = time.Now()
@@ -86,7 +85,7 @@ func TestQTree(t *testing.T) {
 	if scount != tr.count() {
 		t.Fatalf("expected %v, got %v", tr.count(), scount)
 	}
-	fmt.Printf("scanned %v items in %v\n", scount, dur)
+	//	fmt.Printf("scanned %v items in %v\n", scount, dur)
 
 	//
 	start = time.Now()
@@ -99,6 +98,6 @@ func TestQTree(t *testing.T) {
 	if tr.count() != 0 {
 		t.Fatalf("expected %v, got %v", 0, tr.count())
 	}
-	fmt.Printf("removed %v items in %v\n", len(points)/2, dur)
+	//	fmt.Printf("removed %v items in %v\n", len(points)/2, dur)
 
 }
