@@ -1,6 +1,9 @@
 package marching
 
-import "math"
+import (
+	"math"
+	"time"
+)
 
 type Point struct {
 	X, Y float64
@@ -9,7 +12,7 @@ type PathOptions struct{}
 
 // Paths convert the grid into a series of closed paths.
 func (grid *Grid) Paths(width, height float64, opts *PathOptions) [][]Point {
-	var lg lineGatherer
+	lg := newLineGatherer(width, height)
 	lg.addGrid(grid, width, height)
 	paths := make([][]Point, 0, len(lg.lines))
 	for _, line := range lg.lines {
@@ -21,15 +24,24 @@ func (grid *Grid) Paths(width, height float64, opts *PathOptions) [][]Point {
 }
 
 type lineGatherer struct {
-	lines []line
+	lines   []*line
+	trStart *qtree
+	trEnd   *qtree
 }
 
 type line struct {
 	points []Point
 }
 
+const maxRelativeError = 0.00001
+
+func (p1 Point) expandBounds(p2 Point) (min, max Point) {
+	xval := math.Abs((p1.X-p2.X)/p2.X) * maxRelativeError
+	yval := math.Abs((p1.Y-p2.Y)/p2.Y) * maxRelativeError
+	return Point{p1.X - xval, p1.Y - yval}, Point{p1.X + xval, p1.Y + yval}
+}
+
 func (p1 Point) veryClose(p2 Point) bool {
-	const maxRelativeError = 0.00001
 	if p1 == p2 {
 		return true
 	}
@@ -42,10 +54,18 @@ func (p1 Point) veryClose(p2 Point) bool {
 	return true
 }
 
+var (
+	ctxStart interface{} = "start"
+	ctxEnd   interface{} = "end"
+)
+
 func (l *line) first() Point { return l.points[0] }
 func (l *line) last() Point  { return l.points[len(l.points)-1] }
-func newLineGatherer() *lineGatherer {
-	return &lineGatherer{}
+func newLineGatherer(width, height float64) *lineGatherer {
+	return &lineGatherer{
+		trStart: newQTree(0, 0, width, height, ctxStart),
+		trEnd:   newQTree(0, 0, width, height, ctxEnd),
+	}
 }
 
 func (lg *lineGatherer) appendLines(i, j int) {
@@ -56,25 +76,32 @@ func (lg *lineGatherer) appendLines(i, j int) {
 func (lg *lineGatherer) addSegment(ax, ay, bx, by float64) {
 	pa := Point{ax, ay}
 	pb := Point{bx, by}
-	for i := range lg.lines {
-		if lg.lines[i].first().veryClose(pa) {
-			lg.lines[i].points = append([]Point{pb}, lg.lines[i].points...)
-			return
-		}
-		if lg.lines[i].first().veryClose(pb) {
-			lg.lines[i].points = append([]Point{pa}, lg.lines[i].points...)
-			return
-		}
-		if lg.lines[i].last().veryClose(pa) {
-			lg.lines[i].points = append(lg.lines[i].points, pb)
-			return
-		}
-		if lg.lines[i].last().veryClose(pb) {
-			lg.lines[i].points = append(lg.lines[i].points, pa)
-			return
+	mina, maxa := pa.expandBounds(pb)
+	minb, maxb := pb.expandBounds(pa)
+
+	mina, maxa = mina, maxa
+	minb, maxb = minb, maxb
+	if false {
+		for i := range lg.lines {
+			if lg.lines[i].first().veryClose(pa) {
+				lg.lines[i].points = append([]Point{pb}, lg.lines[i].points...)
+				return
+			}
+			if lg.lines[i].first().veryClose(pb) {
+				lg.lines[i].points = append([]Point{pa}, lg.lines[i].points...)
+				return
+			}
+			if lg.lines[i].last().veryClose(pa) {
+				lg.lines[i].points = append(lg.lines[i].points, pb)
+				return
+			}
+			if lg.lines[i].last().veryClose(pb) {
+				lg.lines[i].points = append(lg.lines[i].points, pa)
+				return
+			}
 		}
 	}
-	lg.lines = append(lg.lines, line{[]Point{pa, pb}})
+	lg.lines = append(lg.lines, &line{[]Point{pa, pb}})
 }
 
 func (lg *lineGatherer) reduceLines() {
@@ -129,6 +156,7 @@ func (lg *lineGatherer) reduceLines() {
 			}
 		}
 	}
+	println(">>", len(lg.lines))
 }
 
 type lineKey struct {
@@ -264,6 +292,7 @@ func (lg *lineGatherer) addCell(
 }
 
 func (lg *lineGatherer) addGrid(grid *Grid, width, height float64) {
+	start := time.Now()
 	gwidth, gheight := float64(grid.Width), float64(grid.Height)
 	for y := 0; y < grid.Height; y++ {
 		for x := 0; x < grid.Width; x++ {
@@ -271,5 +300,8 @@ func (lg *lineGatherer) addGrid(grid *Grid, width, height float64) {
 			lg.addCell(cell, float64(x), float64(y), width, height, gwidth, gheight)
 		}
 	}
+	println("** addCells:", time.Now().Sub(start).String())
+	start = time.Now()
 	lg.reduceLines()
+	println("** reduceLines:", time.Now().Sub(start).String())
 }
