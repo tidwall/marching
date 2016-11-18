@@ -76,12 +76,12 @@ func (lg *lineGatherer) appendLines(i, j int) {
 func (lg *lineGatherer) addSegment(ax, ay, bx, by float64) {
 	pa := Point{ax, ay}
 	pb := Point{bx, by}
-	mina, maxa := pa.expandBounds(pb)
-	minb, maxb := pb.expandBounds(pa)
-
-	mina, maxa = mina, maxa
-	minb, maxb = minb, maxb
 	if false {
+		mina, maxa := pa.expandBounds(pb)
+		minb, maxb := pb.expandBounds(pa)
+
+		mina, maxa = mina, maxa
+		minb, maxb = minb, maxb
 		for i := range lg.lines {
 			if lg.lines[i].first().veryClose(pa) {
 				lg.lines[i].points = append([]Point{pb}, lg.lines[i].points...)

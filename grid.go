@@ -27,36 +27,49 @@ func NewGrid(values []float64, width, height int, level float64, complexity int)
 	gwidth := (width - 1) << cmplx
 	gheight := (height - 1) << cmplx
 	cells := make([]Cell, gwidth*gheight)
+	var vals [4]float64
 	var j int
 	for y := 0; y < gheight; y++ {
 		for x := 0; x < gwidth; x++ {
-			vals := [4]float64{
-				values[((y>>cmplx)+0)*width+((x>>cmplx)+0)],
-				values[((y>>cmplx)+0)*width+((x>>cmplx)+1)],
-				values[((y>>cmplx)+1)*width+((x>>cmplx)+1)],
-				values[((y>>cmplx)+1)*width+((x>>cmplx)+0)],
-			}
-			if complexity > 0 {
-				rx := x % (1 << cmplx)
-				ry := y % (1 << cmplx)
-				sx := float64(rx) / float64(int(1<<cmplx))
-				sy := float64(ry) / float64(int(1<<cmplx))
-				ex := sx + 1/float64(int(1<<cmplx))
-				ey := sy + 1/float64(int(1<<cmplx))
-				vals = [4]float64{
-					bilinearInterpolation(vals, sx, sy),
-					bilinearInterpolation(vals, ex, sy),
-					bilinearInterpolation(vals, ex, ey),
-					bilinearInterpolation(vals, sx, ey),
-				}
-			}
-			center := bilinearInterpolation(vals, 0.5, 0.5)
 			var cell Cell
-			for i := 0; i < 4; i++ {
-				if vals[i] < level {
-					cell.Case |= 1 << uint(4-i-1)
+			if complexity == 0 {
+				vals[0] = values[(y+0)*width+(x+0)]
+				vals[1] = values[(y+0)*width+(x+1)]
+				vals[2] = values[(y+1)*width+(x+1)]
+				vals[3] = values[(y+1)*width+(x+0)]
+			} else {
+				vals[0] = values[((y>>cmplx)+0)*width+((x>>cmplx)+0)]
+				vals[1] = values[((y>>cmplx)+0)*width+((x>>cmplx)+1)]
+				vals[2] = values[((y>>cmplx)+1)*width+((x>>cmplx)+1)]
+				vals[3] = values[((y>>cmplx)+1)*width+((x>>cmplx)+0)]
+				if complexity > 0 {
+					rx := x % (1 << cmplx)
+					ry := y % (1 << cmplx)
+					sx := float64(rx) / float64(int(1<<cmplx))
+					sy := float64(ry) / float64(int(1<<cmplx))
+					ex := sx + 1/float64(int(1<<cmplx))
+					ey := sy + 1/float64(int(1<<cmplx))
+					vals = [4]float64{
+						bilinearInterpolation(vals, sx, sy),
+						bilinearInterpolation(vals, ex, sy),
+						bilinearInterpolation(vals, ex, ey),
+						bilinearInterpolation(vals, sx, ey),
+					}
 				}
 			}
+			if vals[0] < level {
+				cell.Case |= 0x8
+			}
+			if vals[1] < level {
+				cell.Case |= 0x4
+			}
+			if vals[2] < level {
+				cell.Case |= 0x2
+			}
+			if vals[3] < level {
+				cell.Case |= 0x1
+			}
+			center := (vals[0] + vals[1] + vals[2] + vals[3]) / 4
 			cell.CenterAbove = center >= level
 			cells[j] = cell
 			j++
