@@ -14,33 +14,38 @@ type PathOptions struct{}
 func (grid *Grid) Paths(width, height float64, opts *PathOptions) [][]Point {
 	lg := newLineGatherer(width, height)
 	lg.addGrid(grid, width, height)
-	paths := make([][]Point, 0, len(lg.lines))
-	for _, line := range lg.lines {
-		points := make([]Point, len(line.points))
-		copy(points, line.points)
-		paths = append(paths, points)
+	paths := make([][]Point, len(lg.lines))
+	for i, line := range lg.lines {
+		path := make([]Point, len(line.points))
+		for j, point := range line.points {
+			path[j] = Point{point.x, point.y}
+		}
+		paths[i] = path
 	}
 	return paths
 }
 
 type lineGatherer struct {
-	lines []line
+	lines []*line
+}
+type point struct {
+	x, y float64
 }
 
 type line struct {
-	points []Point
+	points []*point
 }
 
 const maxRelativeError = 0.00001
 
-func (p1 Point) veryClose(p2 Point) bool {
-	if p1 == p2 {
+func (p1 *point) veryClose(p2 *point) bool {
+	if *p1 == *p2 {
 		return true
 	}
-	if math.Abs((p1.X-p2.X)/p2.X) > maxRelativeError {
+	if math.Abs((p1.x-p2.x)/p2.x) > maxRelativeError {
 		return false
 	}
-	if math.Abs((p1.Y-p2.Y)/p2.Y) > maxRelativeError {
+	if math.Abs((p1.y-p2.y)/p2.y) > maxRelativeError {
 		return false
 	}
 	return true
@@ -51,8 +56,8 @@ var (
 	ctxEnd   interface{} = "end"
 )
 
-func (l *line) first() Point { return l.points[0] }
-func (l *line) last() Point  { return l.points[len(l.points)-1] }
+func (l *line) first() *point { return l.points[0] }
+func (l *line) last() *point  { return l.points[len(l.points)-1] }
 func newLineGatherer(width, height float64) *lineGatherer {
 	return &lineGatherer{}
 }
@@ -92,7 +97,7 @@ func (lg *lineGatherer) addSegment(ax, ay, bx, by float64) {
 			}
 		}
 	*/
-	lg.lines = append(lg.lines, line{[]Point{{ax, ay}, {bx, by}}})
+	lg.lines = append(lg.lines, &line{[]*point{&point{ax, ay}, &point{bx, by}}})
 }
 
 func (lg *lineGatherer) reduceLines() {
@@ -283,6 +288,7 @@ func (lg *lineGatherer) addCell(
 func (lg *lineGatherer) addGrid(grid *Grid, width, height float64) {
 	start := time.Now()
 	gwidth, gheight := float64(grid.Width), float64(grid.Height)
+
 	for y := 0; y < grid.Height; y++ {
 		for x := 0; x < grid.Width; x++ {
 			cell := grid.Cells[y*grid.Width+x]
