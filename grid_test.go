@@ -20,7 +20,7 @@ var (
 	testAWidth          = 5
 	testAHeight         = 5
 	testALevel  float64 = 2
-	testACases          = []Case{
+	testACases          = []byte{
 		13, 12, 12, 14,
 		9, 0, 0, 6,
 		9, 0, 0, 6,
