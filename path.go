@@ -12,14 +12,19 @@ func (grid *Grid) Paths(width, height float64, opts *PathOptions) [][]Point {
 	width2f := float64((grid.Width + 1) * 2)
 	height2f := float64((grid.Height + 1) * 2)
 	lg := newLineGatherer(int(width2f), int(height2f))
-	lg.addGrid(grid)
-	paths := make([][]Point, len(lg.lines))
-	for i, line := range lg.lines {
+	count := lg.addGrid(grid)
+	paths := make([][]Point, count)
+	var i int
+	for _, line := range lg.lines {
+		if line.deleted {
+			continue
+		}
 		path := make([]Point, len(line.points))
 		for j, point := range line.points {
 			path[j] = Point{float64(point.x) / width2f * width, float64(point.y) / height2f * height}
 		}
 		paths[i] = path
+		i++
 	}
 	return paths
 }
@@ -33,7 +38,8 @@ type point struct {
 }
 
 type line struct {
-	points []point
+	points  []point
+	deleted bool
 }
 
 var (
@@ -41,8 +47,8 @@ var (
 	ctxEnd   interface{} = "end"
 )
 
-func (l *line) first() point { return l.points[0] }
-func (l *line) last() point  { return l.points[len(l.points)-1] }
+func (l line) first() point { return l.points[0] }
+func (l line) last() point  { return l.points[len(l.points)-1] }
 func newLineGatherer(width, height int) *lineGatherer {
 	return &lineGatherer{
 		width:  width,
@@ -52,48 +58,27 @@ func newLineGatherer(width, height int) *lineGatherer {
 
 func (lg *lineGatherer) appendLines(i, j int) {
 	lg.lines[i].points = append(lg.lines[i].points, lg.lines[j].points[1:]...)
-	lg.lines = append(lg.lines[:j], lg.lines[j+1:]...)
+	lg.lines[j].deleted = true
+	///lg.lines = append(lg.lines[:j], lg.lines[j+1:]...)
 }
 
 func (lg *lineGatherer) addSegment(ax, ay, bx, by int) {
-	/*
-		pa := Point{ax, ay}
-		pb := Point{bx, by}
-		if false {
-			mina, maxa := pa.expandBounds(pb)
-			minb, maxb := pb.expandBounds(pa)
-
-			mina, maxa = mina, maxa
-			minb, maxb = minb, maxb
-			for i := range lg.lines {
-				if lg.lines[i].first().veryClose(pa) {
-					lg.lines[i].points = append([]Point{pb}, lg.lines[i].points...)
-					return
-				}
-				if lg.lines[i].first().veryClose(pb) {
-					lg.lines[i].points = append([]Point{pa}, lg.lines[i].points...)
-					return
-				}
-				if lg.lines[i].last().veryClose(pa) {
-					lg.lines[i].points = append(lg.lines[i].points, pb)
-					return
-				}
-				if lg.lines[i].last().veryClose(pb) {
-					lg.lines[i].points = append(lg.lines[i].points, pa)
-					return
-				}
-			}
-		}
-	*/
-	lg.lines = append(lg.lines, line{[]point{{ax, ay}, {bx, by}}})
+	lg.lines = append(lg.lines, line{points: []point{{ax, ay}, {bx, by}}})
 }
 
-func (lg *lineGatherer) reduceLines() {
+func (lg *lineGatherer) reduceLines() int {
 	for {
 		var connectionMade bool
+
 		for i := 0; i < len(lg.lines); i++ {
+			if lg.lines[i].deleted {
+				continue
+			}
 			for j := 0; j < len(lg.lines); j++ {
 				if i == j {
+					continue
+				}
+				if lg.lines[j].deleted {
 					continue
 				}
 				if lg.lines[j].first() == lg.lines[i].last() {
@@ -125,8 +110,12 @@ func (lg *lineGatherer) reduceLines() {
 			break
 		}
 	}
+	var count int
 	// close paths
 	for i := 0; i < len(lg.lines); i++ {
+		if lg.lines[i].deleted {
+			continue
+		}
 		// make sure that the paths close at exact points
 		if lg.lines[i].first() != lg.lines[i].last() {
 			// the path does not close
@@ -139,8 +128,10 @@ func (lg *lineGatherer) reduceLines() {
 				lg.lines[i].points = append(lg.lines[i].points, lg.lines[i].points[0])
 			}
 		}
+		count++
 	}
-	println(">>", len(lg.lines))
+	println(">>", count)
+	return count
 }
 
 type lineKey struct {
@@ -152,21 +143,16 @@ func (lg *lineGatherer) addCell(
 	x, y, width, height int,
 	gridWidth, gridHeight int,
 ) {
-
-	var cellw = width / gridWidth
-	var cellh = height / gridHeight
-	var leftx = cellw * x
-	var lefty = cellh*y + cellh/2
-
-	var rightx = cellw*x + cellw
-	var righty = cellh*y + cellh/2
-	var topx = cellw*x + cellw/2
-	var topy = cellh * y
-	var bottomx = cellw*x + cellw/2
-	var bottomy = cellh*y + cellh
-	//var centerx =  cellw*float64(x) + cellw*0.5
-	//var centery =  cellh*float64(y) + cellh*0.5
 	if cell.Case != 0 && cell.Case != 15 {
+		var leftx = x * 2
+		var lefty = y*2 + 1
+		var rightx = x*2 + 2
+		var righty = y*2 + 1
+		var topx = x*2 + 1
+		var topy = y * 2
+		var bottomx = x*2 + 1
+		var bottomy = y*2 + 2
+
 		switch cell.Case {
 		default:
 			panic("invalid case")
@@ -216,13 +202,13 @@ func (lg *lineGatherer) addCell(
 	if y == 0 {
 		// top
 		if cell.Case&0x8 == 0 {
-			ax := cellw*x - cellw/2
+			ax := 2*x - 1
 			ay := 0
-			bx := ax + cellw
+			bx := ax + 2
 			by := ay
 			if x == 0 {
-				lg.addSegment(ax+cellw/2, ay+cellh/2, ax+cellw/2, ay)
-				lg.addSegment(ax+cellw/2, ay, bx, by)
+				lg.addSegment(ax+2/2, ay+2/2, ax+2/2, ay)
+				lg.addSegment(ax+2/2, ay, bx, by)
 			} else {
 				lg.addSegment(ax, ay, bx, by)
 			}
@@ -230,13 +216,13 @@ func (lg *lineGatherer) addCell(
 	} else if y == gridHeight-1 {
 		// bottom
 		if cell.Case&0x2 == 0 {
-			ax := cellw*(x+1) + cellw/2
-			ay := gridHeight * cellh
-			bx := ax - cellw
+			ax := 2*(x+1) + 2/2
+			ay := gridHeight * 2
+			bx := ax - 2
 			by := ay
 			if x == gridWidth-1 {
-				lg.addSegment(ax-cellw/2, ay-cellh/2, ax-cellw/2, ay)
-				lg.addSegment(ax-cellw/2, ay, bx, by)
+				lg.addSegment(ax-2/2, ay-2/2, ax-2/2, ay)
+				lg.addSegment(ax-2/2, ay, bx, by)
 			} else {
 				lg.addSegment(ax, ay, bx, by)
 			}
@@ -246,12 +232,12 @@ func (lg *lineGatherer) addCell(
 		// left
 		if cell.Case&0x1 == 0 {
 			ax := 0
-			ay := cellh*(y+1) + cellh/2
+			ay := 2*(y+1) + 2/2
 			bx := ax
-			by := ay - cellh
+			by := ay - 2
 			if y == gridHeight-1 {
-				lg.addSegment(ax+cellw/2, ay-cellh/2, ax, ay-cellh/2)
-				lg.addSegment(ax, ay-cellh/2, bx, by)
+				lg.addSegment(ax+2/2, ay-2/2, ax, ay-2/2)
+				lg.addSegment(ax, ay-2/2, bx, by)
 			} else {
 				lg.addSegment(ax, ay, bx, by)
 			}
@@ -259,13 +245,13 @@ func (lg *lineGatherer) addCell(
 	} else if x == gridWidth-1 {
 		// right
 		if cell.Case&0x4 == 0 {
-			ax := gridWidth * cellw
-			ay := cellh*y - cellh/2
+			ax := gridWidth * 2
+			ay := 2*y - 2/2
 			bx := ax
-			by := ay + cellh
+			by := ay + 2
 			if y == 0 {
-				lg.addSegment(ax-cellw/2, ay+cellh/2, ax, ay+cellh/2)
-				lg.addSegment(ax, ay+cellh/2, bx, by)
+				lg.addSegment(ax-2/2, ay+2/2, ax, ay+2/2)
+				lg.addSegment(ax, ay+2/2, bx, by)
 			} else {
 				lg.addSegment(ax, ay, bx, by)
 			}
@@ -273,7 +259,7 @@ func (lg *lineGatherer) addCell(
 	}
 }
 
-func (lg *lineGatherer) addGrid(grid *Grid) {
+func (lg *lineGatherer) addGrid(grid *Grid) int {
 	start := time.Now()
 	gwidth, gheight := grid.Width, grid.Height
 
@@ -285,6 +271,7 @@ func (lg *lineGatherer) addGrid(grid *Grid) {
 	}
 	println("** addCells:", time.Now().Sub(start).String())
 	start = time.Now()
-	lg.reduceLines()
+	count := lg.reduceLines()
 	println("** reduceLines:", time.Now().Sub(start).String())
+	return count
 }
