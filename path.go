@@ -42,16 +42,16 @@ func (lg *lineGatherer) Len() int {
 }
 
 func (lg *lineGatherer) Less(a, b int) bool {
-	pointA := lg.lines[a].first()
-	pointB := lg.lines[b].first()
+	pointA := lg.lines[a].last()
+	pointB := lg.lines[b].last()
 	if pointA.y < pointB.y {
 		return true
 	}
 	if pointA.x < pointB.x {
 		return true
 	}
-	pointA = lg.lines[a].last()
-	pointB = lg.lines[b].last()
+	pointA = lg.lines[a].first()
+	pointB = lg.lines[b].first()
 	if pointA.y < pointB.y {
 		return true
 	}
