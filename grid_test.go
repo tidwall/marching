@@ -42,6 +42,7 @@ var (
 
 func TestTerrarium(t *testing.T) {
 	f, err := os.Open("12_770_1644-12_774_1647.png")
+	//f, err := os.Open("768.png")
 	if err != nil {
 		t.Fatal(err)
 	}
