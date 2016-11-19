@@ -25,10 +25,12 @@ type Grid struct {
 }
 
 // NewGrid generates a grid of isoline cells from a series of values.
-// The resulting Grid contains cells with indexes compared to the level param.
-// The complexity param can be used to increase the number of grid cells.
-// Using a complexity of zero will result in a grid with the default number of
-// cells.
+// The resulting Grid contains cells with case indexes compared to the
+// level param.
+// The complexity param can be used to increase or decrease the number
+// of grid cells.
+// Using a complexity of zero will result in a grid with the default
+// number of cells.
 func NewGrid(values []float64, width, height int, level float64, complexity int) *Grid {
 	if len(values) != width*height {
 		panic("number of values are not equal to width multiplied by height")
@@ -36,12 +38,23 @@ func NewGrid(values []float64, width, height int, level float64, complexity int)
 	if width <= 2 || height <= 2 {
 		panic("width or height are not greater than or equal to two")
 	}
-	if complexity < 0 {
-		panic("invalid complexity")
+	var pcmplx uint
+	var ncmplx uint
+	var gwidth int
+	var gheight int
+	if complexity > 0 {
+		pcmplx = uint(complexity)
+		gwidth = (width - 1) << pcmplx
+		gheight = (height - 1) << pcmplx
+	} else if complexity < 0 {
+		ncmplx = uint(1 << uint(complexity*-1))
+		gwidth = (width - 1) >> ncmplx
+		gheight = (height - 1) >> ncmplx
+	} else {
+		gwidth = width - 1
+		gheight = height - 1
 	}
-	cmplx := uint(complexity)
-	gwidth := (width - 1) << cmplx
-	gheight := (height - 1) << cmplx
+	println(gwidth, gheight)
 	cells := make([]Cell, gwidth*gheight)
 	var vals [4]float64
 	var j int
@@ -53,18 +66,18 @@ func NewGrid(values []float64, width, height int, level float64, complexity int)
 				vals[1] = values[(y+0)*width+(x+1)]
 				vals[2] = values[(y+1)*width+(x+1)]
 				vals[3] = values[(y+1)*width+(x+0)]
-			} else {
-				vals[0] = values[((y>>cmplx)+0)*width+((x>>cmplx)+0)]
-				vals[1] = values[((y>>cmplx)+0)*width+((x>>cmplx)+1)]
-				vals[2] = values[((y>>cmplx)+1)*width+((x>>cmplx)+1)]
-				vals[3] = values[((y>>cmplx)+1)*width+((x>>cmplx)+0)]
+			} else if complexity > 0 {
+				vals[0] = values[((y>>pcmplx)+0)*width+((x>>pcmplx)+0)]
+				vals[1] = values[((y>>pcmplx)+0)*width+((x>>pcmplx)+1)]
+				vals[2] = values[((y>>pcmplx)+1)*width+((x>>pcmplx)+1)]
+				vals[3] = values[((y>>pcmplx)+1)*width+((x>>pcmplx)+0)]
 				if complexity > 0 {
-					rx := x % (1 << cmplx)
-					ry := y % (1 << cmplx)
-					sx := float64(rx) / float64(int(1<<cmplx))
-					sy := float64(ry) / float64(int(1<<cmplx))
-					ex := sx + 1/float64(int(1<<cmplx))
-					ey := sy + 1/float64(int(1<<cmplx))
+					rx := x % (1 << pcmplx)
+					ry := y % (1 << pcmplx)
+					sx := float64(rx) / float64(int(1<<pcmplx))
+					sy := float64(ry) / float64(int(1<<pcmplx))
+					ex := sx + 1/float64(int(1<<pcmplx))
+					ey := sy + 1/float64(int(1<<pcmplx))
 					vals = [4]float64{
 						bilinearInterpolation(vals, sx, sy),
 						bilinearInterpolation(vals, ex, sy),
@@ -72,6 +85,11 @@ func NewGrid(values []float64, width, height int, level float64, complexity int)
 						bilinearInterpolation(vals, sx, ey),
 					}
 				}
+			} else {
+				vals[0] = values[((y+0)<<ncmplx)*width+((x+0)<<ncmplx)]
+				vals[1] = values[((y+0)<<ncmplx)*width+((x+1)<<ncmplx)]
+				vals[2] = values[((y+1)<<ncmplx)*width+((x+1)<<ncmplx)]
+				vals[3] = values[((y+1)<<ncmplx)*width+((x+0)<<ncmplx)]
 			}
 			if vals[0] < level {
 				cell.Case |= 0x8

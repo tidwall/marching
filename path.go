@@ -12,8 +12,9 @@ type PathOptions struct{}
 
 // Paths convert the grid into a series of closed paths.
 func (grid *Grid) Paths(width, height float64, opts *PathOptions) [][]Point {
-	width2f := float64((grid.Width + 1) * 2)
-	height2f := float64((grid.Height + 1) * 2)
+	width2f := float64(grid.Width * 2)
+	height2f := float64(grid.Height * 2)
+
 	lg := newLineGatherer(int(width2f), int(height2f))
 	count := lg.addGrid(grid)
 	paths := make([][]Point, count)
