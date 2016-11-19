@@ -1,6 +1,9 @@
 package marching
 
-import "time"
+import (
+	"sort"
+	"time"
+)
 
 type Point struct {
 	X, Y float64
@@ -33,6 +36,35 @@ type lineGatherer struct {
 	lines         []line
 	width, height int
 }
+
+func (lg *lineGatherer) Len() int {
+	return len(lg.lines)
+}
+
+func (lg *lineGatherer) Less(a, b int) bool {
+	pointA := lg.lines[a].first()
+	pointB := lg.lines[b].first()
+	if pointA.y < pointB.y {
+		return true
+	}
+	if pointA.x < pointB.x {
+		return true
+	}
+	pointA = lg.lines[a].last()
+	pointB = lg.lines[b].last()
+	if pointA.y < pointB.y {
+		return true
+	}
+	if pointA.x < pointB.x {
+		return true
+	}
+	return false
+}
+
+func (lg *lineGatherer) Swap(a, b int) {
+	lg.lines[a], lg.lines[b] = lg.lines[b], lg.lines[a]
+}
+
 type point struct {
 	x, y int
 }
@@ -59,7 +91,6 @@ func newLineGatherer(width, height int) *lineGatherer {
 func (lg *lineGatherer) appendLines(i, j int) {
 	lg.lines[i].points = append(lg.lines[i].points, lg.lines[j].points[1:]...)
 	lg.lines[j].deleted = true
-	///lg.lines = append(lg.lines[:j], lg.lines[j+1:]...)
 }
 
 func (lg *lineGatherer) addSegment(ax, ay, bx, by int) {
@@ -67,9 +98,9 @@ func (lg *lineGatherer) addSegment(ax, ay, bx, by int) {
 }
 
 func (lg *lineGatherer) reduceLines() int {
+	sort.Sort(lg)
 	for {
 		var connectionMade bool
-
 		for i := 0; i < len(lg.lines); i++ {
 			if lg.lines[i].deleted {
 				continue
