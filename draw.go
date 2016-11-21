@@ -5,6 +5,7 @@ import (
 	"image/color"
 
 	"github.com/fogleman/gg"
+	"github.com/tidwall/poly"
 )
 
 type ImageOptions struct {
@@ -19,27 +20,17 @@ type ImageOptions struct {
 	//Spline      float64
 }
 
-// http://stackoverflow.com/a/1165943/424124
-func pathIsClockwise(path []Point) bool {
-	var total float64
-	for i := 1; i < len(path); i++ {
-		total += (path[i].X - path[i-1].X) * (path[i].Y - path[i-1].Y)
-	}
-	fmt.Printf("%v\n", total)
-	return total < 0
-}
-func reverseWinding(path []Point) []Point {
-	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
-		path[i], path[j] = path[j], path[i]
-	}
-	return path
-}
-
-func savePathsPNG(paths [][]Point, width, height int, filePath string) error {
+func savePathsPNG(paths []poly.Polygon, aboveMap map[int]poly.Point, width, height int, filePath string) error {
 	gc := gg.NewContext(width, height)
 	gc.SetColor(color.White)
 	gc.DrawRectangle(0, 0, float64(width), float64(height))
 	gc.Fill()
+
+	if len(paths) > 1 {
+		for i := 0; i < len(paths[2]); i++ {
+			paths[2][i].X += 20
+		}
+	}
 
 	for _, path := range paths {
 		if len(path) > 2 {
@@ -50,7 +41,8 @@ func savePathsPNG(paths [][]Point, width, height int, filePath string) error {
 			gc.ClosePath()
 		}
 	}
-	gc.SetFillRuleEvenOdd()
+
+	//	gc.SetFillRuleEvenOdd()
 	gc.SetColor(color.NRGBA{0x88, 0xAA, 0xCC, 0xFF})
 	gc.Fill()
 
@@ -63,9 +55,52 @@ func savePathsPNG(paths [][]Point, width, height int, filePath string) error {
 			gc.ClosePath()
 		}
 	}
-	gc.SetLineWidth(2)
+	gc.SetLineWidth(4)
 	gc.SetColor(color.NRGBA{0xCC, 0xAA, 0x88, 0xFF})
 	gc.Stroke()
 
+	//opts := poly.Options{PixelPlane: true}
+
+	// draw outline
+	for i, path := range paths {
+		rect := path.Rect()
+		gc.MoveTo(rect.Min.X, rect.Min.Y)
+		gc.LineTo(rect.Max.X, rect.Min.Y)
+		gc.LineTo(rect.Max.X, rect.Max.Y)
+		gc.LineTo(rect.Min.X, rect.Max.Y)
+		gc.LineTo(rect.Min.X, rect.Min.Y)
+		gc.SetLineWidth(1)
+		if i == 2 {
+			reverseWinding(path)
+		}
+		if pathIsClockwise(path) {
+			gc.SetColor(color.NRGBA{0, 0, 0xff, 0xFF})
+		} else {
+			gc.SetColor(color.NRGBA{0xff, 0, 0, 0xFF})
+		}
+		gc.Stroke()
+		gc.DrawString(fmt.Sprintf("%d", i), rect.Min.X+2, rect.Min.Y+12)
+		gc.Fill()
+		if above, ok := aboveMap[i]; ok {
+			if i == 2 {
+				above.X += 0
+			}
+			if i == 0 {
+				above.X += 12
+				above.Y += 40
+			}
+			if i == 5 {
+				above.X -= 10
+			}
+			if !above.Inside(path, nil) { //, &opts) {
+				gc.SetColor(color.NRGBA{0, 0, 0, 0xFF})
+			}
+			gc.DrawLine(above.X, above.Y, (rect.Max.X-rect.Min.X)/2+rect.Min.X, (rect.Max.Y-rect.Min.Y)/2+rect.Min.Y)
+			gc.Stroke()
+			gc.DrawCircle(above.X, above.Y, 6)
+			gc.DrawCircle((rect.Max.X-rect.Min.X)/2+rect.Min.X, (rect.Max.Y-rect.Min.Y)/2+rect.Min.Y, 3)
+			gc.Fill()
+		}
+	}
 	return gc.SavePNG(filePath)
 }

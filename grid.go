@@ -1,3 +1,5 @@
+// Package marching allows for generating isoline cells from a grid
+// of values as specified in https://en.wikipedia.org/wiki/Marching_squares.
 package marching
 
 // Cell represents a single isoline square.
@@ -38,10 +40,10 @@ func NewGrid(values []float64, width, height int, level float64, complexity int)
 	if width <= 2 || height <= 2 {
 		panic("width or height are not greater than or equal to two")
 	}
-	var pcmplx uint
-	var ncmplx uint
-	var gwidth int
-	var gheight int
+	var pcmplx uint // positive complexity
+	var ncmplx uint // negative complexity
+	var gwidth int  // grid width
+	var gheight int // grid height
 	if complexity > 0 {
 		pcmplx = uint(complexity)
 		gwidth = (width - 1) << pcmplx
@@ -54,7 +56,6 @@ func NewGrid(values []float64, width, height int, level float64, complexity int)
 		gwidth = width - 1
 		gheight = height - 1
 	}
-	println(gwidth, gheight)
 	cells := make([]Cell, gwidth*gheight)
 	var vals [4]float64
 	var j int
