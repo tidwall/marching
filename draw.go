@@ -37,7 +37,7 @@ func savePathsPNG(grid *Grid, paths []Polygon, aboveMap map[int]Point, width, he
 			for i := 1; i < len(path); i++ {
 				gc.LineTo(path[i].X, path[i].Y)
 			}
-			gc.ClosePath()
+			//			gc.ClosePath()
 		}
 	}
 
@@ -51,7 +51,7 @@ func savePathsPNG(grid *Grid, paths []Polygon, aboveMap map[int]Point, width, he
 			for i := 1; i < len(path); i++ {
 				gc.LineTo(path[i].X, path[i].Y)
 			}
-			gc.ClosePath()
+			//			gc.ClosePath()
 		}
 	}
 	gc.SetLineWidth(4)
@@ -61,58 +61,38 @@ func savePathsPNG(grid *Grid, paths []Polygon, aboveMap map[int]Point, width, he
 	//opts := Options{PixelPlane: true}
 
 	// draw outline
-	for i, path := range paths {
-		rect := path.Rect()
-		gc.MoveTo(rect.Min.X, rect.Min.Y)
-		gc.LineTo(rect.Max.X, rect.Min.Y)
-		gc.LineTo(rect.Max.X, rect.Max.Y)
-		gc.LineTo(rect.Min.X, rect.Max.Y)
-		gc.LineTo(rect.Min.X, rect.Min.Y)
-		gc.SetLineWidth(1)
-		//if i == 2 {
-		//	reverseWinding(path)
-		//}
-		if pathIsClockwise(path) {
-			gc.SetColor(color.NRGBA{0, 0, 0xff, 0xFF})
-		} else {
-			gc.SetColor(color.NRGBA{0xff, 0, 0, 0xFF})
-		}
-		gc.Stroke()
-		gc.DrawString(fmt.Sprintf("%d", i), rect.Min.X+2, rect.Min.Y+12)
-		gc.Fill()
-		if above, ok := aboveMap[i]; ok {
-			if i == 0 || i == 3 {
-				above.X += 10
-			}
-			if i == 1 || i == 6 {
-				above.X -= 10
-			}
-			if i == 0 || i == 1 {
-				above.Y += 10
-			}
-			if i == 3 || i == 6 {
-				above.Y -= 10
-			}
+	if true {
+		for i, path := range paths {
+			rect := path.Rect()
+			gc.MoveTo(rect.Min.X, rect.Min.Y)
+			gc.LineTo(rect.Max.X, rect.Min.Y)
+			gc.LineTo(rect.Max.X, rect.Max.Y)
+			gc.LineTo(rect.Min.X, rect.Max.Y)
+			gc.LineTo(rect.Min.X, rect.Min.Y)
+			gc.SetLineWidth(1)
 			//if i == 2 {
-			//	above.X += 0
+			//	reverseWinding(path)
 			//}
-			//if i == 0 {
-			//	above.X += 12
-			//	above.Y += 40
-			//}
-			//if i == 5 {
-			//	above.X -= 10
-			//}
-			inside := pnpoly(path, above)
-
-			if !inside { //!above.Inside(path, nil) { //, &opts) {
-				gc.SetColor(color.NRGBA{0, 0, 0, 0xFF})
+			if pathIsClockwise(path) {
+				gc.SetColor(color.NRGBA{0, 0, 0xff, 0xFF})
+			} else {
+				gc.SetColor(color.NRGBA{0xff, 0, 0, 0xFF})
 			}
-			gc.DrawLine(above.X, above.Y, (rect.Max.X-rect.Min.X)/2+rect.Min.X, (rect.Max.Y-rect.Min.Y)/2+rect.Min.Y)
 			gc.Stroke()
-			gc.DrawCircle(above.X, above.Y, 6)
-			gc.DrawCircle((rect.Max.X-rect.Min.X)/2+rect.Min.X, (rect.Max.Y-rect.Min.Y)/2+rect.Min.Y, 3)
+			gc.DrawString(fmt.Sprintf("%d", i), rect.Min.X+2, rect.Min.Y+12)
 			gc.Fill()
+			if above, ok := aboveMap[i]; ok {
+				inside := pnpoly(path, above)
+
+				if !inside {
+					gc.SetColor(color.NRGBA{0, 0, 0, 0xFF})
+				}
+				gc.DrawLine(above.X, above.Y, (rect.Max.X-rect.Min.X)/2+rect.Min.X, (rect.Max.Y-rect.Min.Y)/2+rect.Min.Y)
+				gc.Stroke()
+				gc.DrawCircle(above.X, above.Y, 6)
+				gc.DrawCircle((rect.Max.X-rect.Min.X)/2+rect.Min.X, (rect.Max.Y-rect.Min.Y)/2+rect.Min.Y, 3)
+				gc.Fill()
+			}
 		}
 	}
 	return gc.SavePNG(filePath)
