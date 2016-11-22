@@ -73,7 +73,7 @@ func savePathsPNG(grid *Grid, paths []Polygon, aboveMap map[int]Point, width, he
 			//if i == 2 {
 			//	reverseWinding(path)
 			//}
-			if pathIsClockwise(path) {
+			if path.IsClockwise() {
 				gc.SetColor(color.NRGBA{0, 0, 0xff, 0xFF})
 			} else {
 				gc.SetColor(color.NRGBA{0xff, 0, 0, 0xFF})
@@ -82,7 +82,7 @@ func savePathsPNG(grid *Grid, paths []Polygon, aboveMap map[int]Point, width, he
 			gc.DrawString(fmt.Sprintf("%d", i), rect.Min.X+2, rect.Min.Y+12)
 			gc.Fill()
 			if above, ok := aboveMap[i]; ok {
-				inside := pnpoly(path, above)
+				inside := path.PointInside(above)
 
 				if !inside {
 					gc.SetColor(color.NRGBA{0, 0, 0, 0xFF})

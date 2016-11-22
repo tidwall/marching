@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const multi = 8 // do not make less than 8
+const multi = 8
 
 type Point struct {
 	X, Y float64
@@ -44,7 +44,6 @@ func (grid *Grid) Paths(width, height float64, opts *PathOptions) ([]Polygon, ma
 	aboveMap := make(map[int]Point)
 	width2f := float64(grid.Width * multi)
 	height2f := float64(grid.Height * multi)
-
 	lg := newLineGatherer(int(width2f), int(height2f))
 	count := lg.addGrid(grid)
 	var paths []Polygon
@@ -61,7 +60,6 @@ func (grid *Grid) Paths(width, height float64, opts *PathOptions) ([]Polygon, ma
 			//	paths[0] = []Point{{0, 0}, {0, height}, {width, height}, {width, 0}, {0, 0}}
 		}
 	} else {
-		//	opts := &Options{PixelPlane: true}
 		paths = make([]Polygon, count)
 		var i int
 		for _, line := range lg.lines {
@@ -75,9 +73,11 @@ func (grid *Grid) Paths(width, height float64, opts *PathOptions) ([]Polygon, ma
 			if line.aboved {
 				above := Point{float64(line.above.x) / width2f * width, float64(line.above.y) / height2f * height}
 				aboveMap[i] = above
+				if path.PointInside(above) != path.IsClockwise() {
+					path.ReverseWinding()
+				}
 			}
 			paths[i] = path
-
 			i++
 		}
 	}
@@ -470,29 +470,29 @@ func (lg *lineGatherer) addGrid(grid *Grid) int {
 }
 
 // http://stackoverflow.com/a/1165943/424124
-func pathIsClockwise(path Polygon) bool {
+func (p Polygon) IsClockwise() bool {
 	var signedArea float64
-	for i := 0; i < len(path); i++ {
-		if i == len(path)-1 {
-			signedArea += (path[i].X*path[0].Y - path[0].X*path[i].Y)
+	for i := 0; i < len(p); i++ {
+		if i == len(p)-1 {
+			signedArea += (p[i].X*p[0].Y - p[0].X*p[i].Y)
 		} else {
-			signedArea += (path[i].X*path[i+1].Y - path[i+1].X*path[i].Y)
+			signedArea += (p[i].X*p[i+1].Y - p[i+1].X*p[i].Y)
 		}
 	}
 	return (signedArea / 2) > 0
 }
 
-func reverseWinding(path Polygon) {
-	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
-		path[i], path[j] = path[j], path[i]
+func (p Polygon) ReverseWinding() {
+	for i, j := 0, len(p)-1; i < j; i, j = i+1, j-1 {
+		p[i], p[j] = p[j], p[i]
 	}
 }
 
-func pnpoly(path Polygon, test Point) bool {
+func (p Polygon) PointInside(test Point) bool {
 	var c bool
-	for i, j := 0, len(path)-1; i < len(path); j, i = i, i+1 {
-		if ((path[i].Y > test.Y) != (path[j].Y > test.Y)) &&
-			(test.X < (path[j].X-path[i].X)*(test.Y-path[i].Y)/(path[j].Y-path[i].Y)+path[i].X) {
+	for i, j := 0, len(p)-1; i < len(p); j, i = i, i+1 {
+		if ((p[i].Y > test.Y) != (p[j].Y > test.Y)) &&
+			(test.X < (p[j].X-p[i].X)*(test.Y-p[i].Y)/(p[j].Y-p[i].Y)+p[i].X) {
 			c = !c
 		}
 	}

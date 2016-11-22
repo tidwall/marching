@@ -64,7 +64,7 @@ func TestTerrarium(t *testing.T) {
 	}
 	start := time.Now()
 	start2 := time.Now()
-	grid := NewGrid(values, width, height, 600, 0)
+	grid := NewGrid(values, width, height, 700, 0)
 	println("** NewGrid:", time.Now().Sub(start2).String())
 	paths, aboveMap := grid.Paths(float64(width), float64(height), nil)
 	println(time.Now().Sub(start).String())
