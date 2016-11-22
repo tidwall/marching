@@ -1,12 +1,16 @@
 package marching
 
 import (
+	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
 	"image/png"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/fogleman/gg"
 )
 
 var (
@@ -42,7 +46,6 @@ var (
 
 func TestTerrarium(t *testing.T) {
 	f, err := os.Open("12_770_1644-12_774_1647.png")
-	//f, err := os.Open("768.png")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,13 +69,15 @@ func TestTerrarium(t *testing.T) {
 	start2 := time.Now()
 	grid := NewGrid(values, width, height, 700, 0)
 	println("** NewGrid:", time.Now().Sub(start2).String())
-	paths, aboveMap := grid.Paths(float64(width), float64(height), nil)
+	aboveMap := make(map[int][]float64)
+	paths := grid.pathsWithOptions(float64(width), float64(height), aboveMap)
 	println(time.Now().Sub(start).String())
-	if err := savePathsPNG(grid, paths, aboveMap, width, height, "terrarium.png"); err != nil {
+	if err := testSavePathsPNG(grid, paths, aboveMap, width, height, "terrarium.png"); err != nil {
 		t.Fatal(err)
 	}
 	return
 }
+
 func TestGrid(t *testing.T) {
 	//grid := NewGrid(testAValues, testAWidth, testAHeight, testALevel)
 	start := time.Now()
@@ -81,9 +86,10 @@ func TestGrid(t *testing.T) {
 	complexity := 0
 	grid := NewGrid(values, width, height, level, complexity)
 	println("** NewGrid:", time.Now().Sub(start2).String())
-	paths, aboveMap := grid.Paths(500, 500, nil)
+	aboveMap := make(map[int][]float64)
+	paths := grid.pathsWithOptions(500, 500, aboveMap)
 	println(time.Now().Sub(start).String())
-	if err := savePathsPNG(grid, paths, aboveMap, 500, 500, "testpaths.png"); err != nil {
+	if err := testSavePathsPNG(grid, paths, aboveMap, 500, 500, "testpaths.png"); err != nil {
 		t.Fatal(err)
 	}
 	return
@@ -139,3 +145,80 @@ func TestSpline(t *testing.T) {
 
 }
 */
+func testSavePathsPNG(grid *Grid, paths [][][]float64, aboveMap map[int][]float64, width, height int, filePath string) error {
+	gc := gg.NewContext(width, height)
+	gc.SetColor(color.White)
+	gc.DrawRectangle(0, 0, float64(width), float64(height))
+	gc.Fill()
+
+	//if len(paths) > 1 {
+	//	for i := 0; i < len(paths[2]); i++ {
+	//		paths[2][i][0] += 20
+	//	}
+	//}
+
+	for _, path := range paths {
+		if len(path) > 2 {
+			gc.MoveTo(path[0][0], path[0][1])
+			for i := 1; i < len(path); i++ {
+				gc.LineTo(path[i][0], path[i][1])
+			}
+			//			gc.ClosePath()
+		}
+	}
+
+	//	gc.SetFillRuleEvenOdd()
+	gc.SetColor(color.NRGBA{0x88, 0xAA, 0xCC, 0xFF})
+	gc.Fill()
+
+	for _, path := range paths {
+		if len(path) > 2 {
+			gc.MoveTo(path[0][0], path[0][1])
+			for i := 1; i < len(path); i++ {
+				gc.LineTo(path[i][0], path[i][1])
+			}
+			//			gc.ClosePath()
+		}
+	}
+	gc.SetLineWidth(4)
+	gc.SetColor(color.NRGBA{0xCC, 0xAA, 0x88, 0xFF})
+	gc.Stroke()
+
+	//opts := Options{PixelPlane: true}
+
+	// draw outline
+	if true {
+		for i, path := range paths {
+			rect := polygon(path).rect()
+			gc.MoveTo(rect.min[0], rect.min[1])
+			gc.LineTo(rect.max[0], rect.min[1])
+			gc.LineTo(rect.max[0], rect.max[1])
+			gc.LineTo(rect.min[0], rect.max[1])
+			gc.LineTo(rect.min[0], rect.min[1])
+			gc.SetLineWidth(1)
+			//if i == 2 {
+			//	reverseWinding(path)
+			//}
+			if polygon(path).isClockwise() {
+				gc.SetColor(color.NRGBA{0, 0, 0xff, 0xFF})
+			} else {
+				gc.SetColor(color.NRGBA{0xff, 0, 0, 0xFF})
+			}
+			gc.Stroke()
+			gc.DrawString(fmt.Sprintf("%d", i), rect.min[0]+2, rect.min[1]+12)
+			gc.Fill()
+			if above, ok := aboveMap[i]; ok {
+				inside := polygon(path).pointInside(above)
+				if !inside {
+					gc.SetColor(color.NRGBA{0, 0, 0, 0xFF})
+				}
+				gc.DrawLine(above[0], above[1], (rect.max[0]-rect.min[0])/2+rect.min[0], (rect.max[1]-rect.min[1])/2+rect.min[1])
+				gc.Stroke()
+				gc.DrawCircle(above[0], above[1], 6)
+				gc.DrawCircle((rect.max[0]-rect.min[0])/2+rect.min[0], (rect.max[1]-rect.min[1])/2+rect.min[1], 3)
+				gc.Fill()
+			}
+		}
+	}
+	return gc.SavePNG(filePath)
+}

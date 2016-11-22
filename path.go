@@ -1,87 +1,97 @@
 package marching
 
-import (
-	"sort"
-	"time"
-)
+import "sort"
+
+// Paths convert the grid into a series of closed paths.
+// Each path is a series of XY coordinate points where X is at
+// index zero and Y is at index one.
+// All paths follow the non-zero winding rule which makes that paths that are
+// clockwise are above the level param that was passed to NewGrid(), and paths
+// that are counter-clockwise are below the level. In other words the
+// clockwise paths are polygons and counter clockwise paths are holes.
+// The handy function IsClockwise(path) can be used to determine the winding
+// direction.
+func (grid *Grid) Paths(width, height float64) [][][]float64 {
+	return grid.pathsWithOptions(width, height, nil)
+}
+
+// IsClockwise returns true if the path is clockwise.
+func IsClockwise(path [][]float64) bool {
+	return polygon(path).isClockwise()
+}
 
 const multi = 8
 
-type Point struct {
-	X, Y float64
+type rect struct {
+	min, max []float64
 }
-type Rect struct {
-	Min, Max Point
-}
-type Polygon []Point
+type polygon [][]float64
 
-func (p Polygon) Rect() Rect {
-	var bbox Rect
+func (p polygon) rect() rect {
+	var bbox rect
 	for i, p := range p {
 		if i == 0 {
-			bbox.Min = p
-			bbox.Max = p
+			bbox.min = []float64{p[0], p[1]}
+			bbox.max = []float64{p[0], p[1]}
 		} else {
-			if p.X < bbox.Min.X {
-				bbox.Min.X = p.X
-			} else if p.X > bbox.Max.X {
-				bbox.Max.X = p.X
+			if p[0] < bbox.min[0] {
+				bbox.min[0] = p[0]
+			} else if p[0] > bbox.max[0] {
+				bbox.max[0] = p[0]
 			}
-			if p.Y < bbox.Min.Y {
-				bbox.Min.Y = p.Y
-			} else if p.Y > bbox.Max.Y {
-				bbox.Max.Y = p.Y
+			if p[1] < bbox.min[1] {
+				bbox.min[1] = p[1]
+			} else if p[1] > bbox.max[1] {
+				bbox.max[1] = p[1]
 			}
 		}
 	}
 	return bbox
 }
 
-type PathOptions struct{}
-
-// Paths convert the grid into a series of closed paths.
-func (grid *Grid) Paths(width, height float64, opts *PathOptions) ([]Polygon, map[int]Point) {
-	aboveMap := make(map[int]Point)
+func (grid *Grid) pathsWithOptions(width, height float64, aboveMap map[int][]float64) [][][]float64 {
 	width2f := float64(grid.Width * multi)
 	height2f := float64(grid.Height * multi)
 	lg := newLineGatherer(int(width2f), int(height2f))
 	count := lg.addGrid(grid)
-	var paths []Polygon
+	var paths [][][]float64
 
 	if count == 0 {
 		// having no lines means that the entire grid is above or below the level.
 		// we need to make at least one big path.
-		paths = make([]Polygon, 1)
+		paths = make([][][]float64, 1)
 		if lg.above {
 			// create one path that encompased the entire rect. clockwise.
-			paths[0] = []Point{{0, 0}, {width, 0}, {width, height}, {0, height}, {0, 0}}
+			paths[0] = [][]float64{{0, 0}, {width, 0}, {width, height}, {0, height}, {0, 0}}
 		} else {
 			// create one path that encompased the entire rect. counter-clockwise.
-			//	paths[0] = []Point{{0, 0}, {0, height}, {width, height}, {width, 0}, {0, 0}}
+			//	paths[0] = [][]float64{{0, 0}, {0, height}, {width, height}, {width, 0}, {0, 0}}
 		}
 	} else {
-		paths = make([]Polygon, count)
+		paths = make([][][]float64, count)
 		var i int
 		for _, line := range lg.lines {
 			if line.deleted {
 				continue
 			}
-			path := Polygon(make([]Point, len(line.points)))
+			path := polygon(make([][]float64, len(line.points)))
 			for j, point := range line.points {
-				path[j] = Point{float64(point.x) / width2f * width, float64(point.y) / height2f * height}
+				path[j] = []float64{float64(point.x) / width2f * width, float64(point.y) / height2f * height}
 			}
 			if line.aboved {
-				above := Point{float64(line.above.x) / width2f * width, float64(line.above.y) / height2f * height}
-				aboveMap[i] = above
-				if path.PointInside(above) != path.IsClockwise() {
-					path.ReverseWinding()
+				above := []float64{float64(line.above.x) / width2f * width, float64(line.above.y) / height2f * height}
+				if aboveMap != nil {
+					aboveMap[i] = above
+				}
+				if path.pointInside(above) != path.isClockwise() {
+					path.reverseWinding()
 				}
 			}
 			paths[i] = path
 			i++
 		}
 	}
-	return paths, aboveMap
+	return paths
 }
 
 type lineGatherer struct {
@@ -224,7 +234,6 @@ func (lg *lineGatherer) reduceLines() int {
 		}
 		count++
 	}
-	println(">>", count)
 	return count
 }
 
@@ -453,46 +462,41 @@ func (lg *lineGatherer) addCell(
 }
 
 func (lg *lineGatherer) addGrid(grid *Grid) int {
-	start := time.Now()
 	gwidth, gheight := grid.Width, grid.Height
-
 	for y := 0; y < grid.Height; y++ {
 		for x := 0; x < grid.Width; x++ {
 			cell := grid.Cells[y*grid.Width+x]
 			lg.addCell(cell, x, y, lg.width, lg.height, gwidth, gheight)
 		}
 	}
-	println("** addCells:", time.Now().Sub(start).String())
-	start = time.Now()
 	count := lg.reduceLines()
-	println("** reduceLines:", time.Now().Sub(start).String())
 	return count
 }
 
 // http://stackoverflow.com/a/1165943/424124
-func (p Polygon) IsClockwise() bool {
+func (p polygon) isClockwise() bool {
 	var signedArea float64
 	for i := 0; i < len(p); i++ {
 		if i == len(p)-1 {
-			signedArea += (p[i].X*p[0].Y - p[0].X*p[i].Y)
+			signedArea += (p[i][0]*p[0][1] - p[0][0]*p[i][1])
 		} else {
-			signedArea += (p[i].X*p[i+1].Y - p[i+1].X*p[i].Y)
+			signedArea += (p[i][0]*p[i+1][1] - p[i+1][0]*p[i][1])
 		}
 	}
 	return (signedArea / 2) > 0
 }
 
-func (p Polygon) ReverseWinding() {
+func (p polygon) reverseWinding() {
 	for i, j := 0, len(p)-1; i < j; i, j = i+1, j-1 {
 		p[i], p[j] = p[j], p[i]
 	}
 }
 
-func (p Polygon) PointInside(test Point) bool {
+func (p polygon) pointInside(test []float64) bool {
 	var c bool
 	for i, j := 0, len(p)-1; i < len(p); j, i = i, i+1 {
-		if ((p[i].Y > test.Y) != (p[j].Y > test.Y)) &&
-			(test.X < (p[j].X-p[i].X)*(test.Y-p[i].Y)/(p[j].Y-p[i].Y)+p[i].X) {
+		if ((p[i][1] > test[1]) != (p[j][1] > test[1])) &&
+			(test[0] < (p[j][0]-p[i][0])*(test[1]-p[i][1])/(p[j][1]-p[i][1])+p[i][0]) {
 			c = !c
 		}
 	}
