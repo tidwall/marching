@@ -1,79 +1,80 @@
 package marching
 
 import (
-	"fmt"
 	"sort"
 	"time"
-
-	"github.com/tidwall/poly"
 )
+
+const multiplier = 2
+
+type Point struct {
+	X, Y float64
+}
+type Rect struct {
+	Min, Max Point
+}
+type Polygon []Point
+
+func (p Polygon) Rect() Rect {
+	var bbox Rect
+	for i, p := range p {
+		if i == 0 {
+			bbox.Min = p
+			bbox.Max = p
+		} else {
+			if p.X < bbox.Min.X {
+				bbox.Min.X = p.X
+			} else if p.X > bbox.Max.X {
+				bbox.Max.X = p.X
+			}
+			if p.Y < bbox.Min.Y {
+				bbox.Min.Y = p.Y
+			} else if p.Y > bbox.Max.Y {
+				bbox.Max.Y = p.Y
+			}
+		}
+	}
+	return bbox
+}
 
 type PathOptions struct{}
 
 // Paths convert the grid into a series of closed paths.
-func (grid *Grid) Paths(width, height float64, opts *PathOptions) ([]poly.Polygon, map[int]poly.Point) {
-	aboveMap := make(map[int]poly.Point)
-	width2f := float64(grid.Width * 2)
-	height2f := float64(grid.Height * 2)
+func (grid *Grid) Paths(width, height float64, opts *PathOptions) ([]Polygon, map[int]Point) {
+	aboveMap := make(map[int]Point)
+	width2f := float64(grid.Width * multiplier)
+	height2f := float64(grid.Height * multiplier)
 
 	lg := newLineGatherer(int(width2f), int(height2f))
 	count := lg.addGrid(grid)
-	var paths []poly.Polygon
+	var paths []Polygon
 
 	if count == 0 {
 		// having no lines means that the entire grid is above or below the level.
 		// we need to make at least one big path.
-		paths = make([]poly.Polygon, 1)
+		paths = make([]Polygon, 1)
 		if lg.above {
 			// create one path that encompased the entire rect. clockwise.
-			paths[0] = []poly.Point{{0, 0}, {width, 0}, {width, height}, {0, height}, {0, 0}}
+			paths[0] = []Point{{0, 0}, {width, 0}, {width, height}, {0, height}, {0, 0}}
 		} else {
 			// create one path that encompased the entire rect. counter-clockwise.
 			//	paths[0] = []Point{{0, 0}, {0, height}, {width, height}, {width, 0}, {0, 0}}
 		}
 	} else {
-		//	opts := &poly.Options{PixelPlane: true}
-		paths = make([]poly.Polygon, count)
+		//	opts := &Options{PixelPlane: true}
+		paths = make([]Polygon, count)
 		var i int
 		for _, line := range lg.lines {
 			if line.deleted {
 				continue
 			}
-			path := poly.Polygon(make([]poly.Point, len(line.points)))
+			path := Polygon(make([]Point, len(line.points)))
 			for j, point := range line.points {
-				path[j] = poly.Point{float64(point.x) / width2f * width, float64(point.y) / height2f * height}
+				path[j] = Point{float64(point.x) / width2f * width, float64(point.y) / height2f * height}
 			}
 			if line.aboved {
-				above := poly.Point{float64(line.above.x) / width2f * width, float64(line.above.y) / height2f * height}
+				above := Point{float64(line.above.x) / width2f * width, float64(line.above.y) / height2f * height}
 				aboveMap[i] = above
-				if false {
-					var aboveInside bool
-					//	:= above.Inside(path, nil, opts)
-					clockwise := pathIsClockwise(path)
-					var clockwiseI int
-					if clockwise {
-						clockwiseI = 1
-					}
-					var aboveInsideI int
-					if aboveInside {
-						aboveInsideI = 1
-					}
-					fmt.Printf("line: %d, clockwise: %v, aboveInside: %v, abovePoint: %v\n", i, clockwiseI, aboveInsideI, above)
-
-					if false {
-						if pathIsClockwise(path) {
-							//fmt.Printf("line %d: clockwise %v: %v, aboveInside: %v\n", i, 1, above, aboveInside)
-							// if above is outside{
-							//      reverseWinding(path)
-							// }
-						} else {
-							//fmt.Printf("line %d: clockwise %v: %v, aboveInside: %v\n", i, 0, above, aboveInside)
-							// if above is inside{
-							//      reverseWinding(path)
-							// }
-						}
-					}
-				}
 			}
 			paths[i] = path
 
@@ -239,16 +240,16 @@ func (lg *lineGatherer) addCell(
 	if cell.Case == 0 {
 		lg.above = true
 	} else if cell.Case != 15 {
-		var leftx = x * 2
-		var lefty = y*2 + 1
-		var rightx = x*2 + 2
-		var righty = y*2 + 1
-		var topx = x*2 + 1
-		var topy = y * 2
-		var bottomx = x*2 + 1
-		var bottomy = y*2 + 2
-		//var centerx = x*2+1
-		//var centery =y*2+1
+		var leftx = x * multiplier
+		var lefty = y*multiplier + 1
+		var rightx = x*multiplier + multiplier
+		var righty = y*multiplier + 1
+		var topx = x*multiplier + 1
+		var topy = y * multiplier
+		var bottomx = x*multiplier + 1
+		var bottomy = y*multiplier + multiplier
+		//var centerx = x*multiplier+1
+		//var centery =y*multiplier+1
 
 		switch cell.Case {
 		default:
@@ -323,13 +324,13 @@ func (lg *lineGatherer) addCell(
 	if y == 0 {
 		// top
 		if cell.Case&0x8 == 0 {
-			ax := 2*x - 1
+			ax := multiplier*x - 1
 			ay := 0
-			bx := ax + 2
+			bx := ax + multiplier
 			by := ay
 			if x == 0 {
-				lg.addSegment(ax+2/2, ay+2/2, ax+2/2, ay, 0, 0, false)
-				lg.addSegment(ax+2/2, ay, bx, by, 0, 0, false)
+				lg.addSegment(ax+multiplier/2, ay+multiplier/2, ax+multiplier/2, ay, 0, 0, false)
+				lg.addSegment(ax+multiplier/2, ay, bx, by, 0, 0, false)
 			} else {
 				lg.addSegment(ax, ay, bx, by, 0, 0, false)
 			}
@@ -337,13 +338,13 @@ func (lg *lineGatherer) addCell(
 	} else if y == gridHeight-1 {
 		// bottom
 		if cell.Case&0x2 == 0 {
-			ax := 2*(x+1) + 2/2
-			ay := gridHeight * 2
-			bx := ax - 2
+			ax := multiplier*(x+1) + multiplier/2
+			ay := gridHeight * multiplier
+			bx := ax - multiplier
 			by := ay
 			if x == gridWidth-1 {
-				lg.addSegment(ax-2/2, ay-2/2, ax-2/2, ay, 0, 0, false)
-				lg.addSegment(ax-2/2, ay, bx, by, 0, 0, false)
+				lg.addSegment(ax-multiplier/2, ay-multiplier/2, ax-multiplier/2, ay, 0, 0, false)
+				lg.addSegment(ax-multiplier/2, ay, bx, by, 0, 0, false)
 			} else {
 				lg.addSegment(ax, ay, bx, by, 0, 0, false)
 			}
@@ -353,12 +354,12 @@ func (lg *lineGatherer) addCell(
 		// left
 		if cell.Case&0x1 == 0 {
 			ax := 0
-			ay := 2*(y+1) + 2/2
+			ay := multiplier*(y+1) + multiplier/2
 			bx := ax
-			by := ay - 2
+			by := ay - multiplier
 			if y == gridHeight-1 {
-				lg.addSegment(ax+2/2, ay-2/2, ax, ay-2/2, 0, 0, false)
-				lg.addSegment(ax, ay-2/2, bx, by, 0, 0, false)
+				lg.addSegment(ax+multiplier/2, ay-multiplier/2, ax, ay-multiplier/2, 0, 0, false)
+				lg.addSegment(ax, ay-multiplier/2, bx, by, 0, 0, false)
 			} else {
 				lg.addSegment(ax, ay, bx, by, 0, 0, false)
 			}
@@ -366,13 +367,13 @@ func (lg *lineGatherer) addCell(
 	} else if x == gridWidth-1 {
 		// right
 		if cell.Case&0x4 == 0 {
-			ax := gridWidth * 2
-			ay := 2*y - 2/2
+			ax := gridWidth * multiplier
+			ay := multiplier*y - multiplier/2
 			bx := ax
-			by := ay + 2
+			by := ay + multiplier
 			if y == 0 {
-				lg.addSegment(ax-2/2, ay+2/2, ax, ay+2/2, 0, 0, false)
-				lg.addSegment(ax, ay+2/2, bx, by, 0, 0, false)
+				lg.addSegment(ax-multiplier/2, ay+multiplier/2, ax, ay+multiplier/2, 0, 0, false)
+				lg.addSegment(ax, ay+multiplier/2, bx, by, 0, 0, false)
 			} else {
 				lg.addSegment(ax, ay, bx, by, 0, 0, false)
 			}
@@ -398,7 +399,7 @@ func (lg *lineGatherer) addGrid(grid *Grid) int {
 }
 
 // http://stackoverflow.com/a/1165943/424124
-func pathIsClockwise(path poly.Polygon) bool {
+func pathIsClockwise(path Polygon) bool {
 	var signedArea float64
 	for i := 0; i < len(path); i++ {
 		if i == len(path)-1 {
@@ -409,8 +410,29 @@ func pathIsClockwise(path poly.Polygon) bool {
 	}
 	return (signedArea / 2) > 0
 }
-func reverseWinding(path poly.Polygon) {
+func reverseWinding(path Polygon) {
 	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
 		path[i], path[j] = path[j], path[i]
 	}
+}
+
+func pnpoly(path Polygon, test Point) bool {
+	vertx := make([]float64, len(path))
+	verty := make([]float64, len(path))
+	for i := 0; i < len(path); i++ {
+		vertx[i] = path[i].X
+		verty[i] = path[i].Y
+	}
+	return pnpoly_(len(vertx), vertx, verty, test.X, test.Y)
+}
+
+func pnpoly_(nvert int, vertx, verty []float64, testx, testy float64) bool {
+	var c bool
+	for i, j := 0, nvert-1; i < nvert; j, i = i, i+1 {
+		if ((verty[i] > testy) != (verty[j] > testy)) &&
+			(testx < (vertx[j]-vertx[i])*(testy-verty[i])/(verty[j]-verty[i])+vertx[i]) {
+			c = !c
+		}
+	}
+	return c
 }

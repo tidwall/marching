@@ -5,7 +5,6 @@ import (
 	"image/color"
 
 	"github.com/fogleman/gg"
-	"github.com/tidwall/poly"
 )
 
 type ImageOptions struct {
@@ -20,17 +19,17 @@ type ImageOptions struct {
 	//Spline      float64
 }
 
-func savePathsPNG(paths []poly.Polygon, aboveMap map[int]poly.Point, width, height int, filePath string) error {
+func savePathsPNG(grid *Grid, paths []Polygon, aboveMap map[int]Point, width, height int, filePath string) error {
 	gc := gg.NewContext(width, height)
 	gc.SetColor(color.White)
 	gc.DrawRectangle(0, 0, float64(width), float64(height))
 	gc.Fill()
 
-	if len(paths) > 1 {
-		for i := 0; i < len(paths[2]); i++ {
-			paths[2][i].X += 20
-		}
-	}
+	//if len(paths) > 1 {
+	//	for i := 0; i < len(paths[2]); i++ {
+	//		paths[2][i].X += 20
+	//	}
+	//}
 
 	for _, path := range paths {
 		if len(path) > 2 {
@@ -59,7 +58,7 @@ func savePathsPNG(paths []poly.Polygon, aboveMap map[int]poly.Point, width, heig
 	gc.SetColor(color.NRGBA{0xCC, 0xAA, 0x88, 0xFF})
 	gc.Stroke()
 
-	//opts := poly.Options{PixelPlane: true}
+	//opts := Options{PixelPlane: true}
 
 	// draw outline
 	for i, path := range paths {
@@ -70,9 +69,9 @@ func savePathsPNG(paths []poly.Polygon, aboveMap map[int]poly.Point, width, heig
 		gc.LineTo(rect.Min.X, rect.Max.Y)
 		gc.LineTo(rect.Min.X, rect.Min.Y)
 		gc.SetLineWidth(1)
-		if i == 2 {
-			reverseWinding(path)
-		}
+		//if i == 2 {
+		//	reverseWinding(path)
+		//}
 		if pathIsClockwise(path) {
 			gc.SetColor(color.NRGBA{0, 0, 0xff, 0xFF})
 		} else {
@@ -82,17 +81,31 @@ func savePathsPNG(paths []poly.Polygon, aboveMap map[int]poly.Point, width, heig
 		gc.DrawString(fmt.Sprintf("%d", i), rect.Min.X+2, rect.Min.Y+12)
 		gc.Fill()
 		if above, ok := aboveMap[i]; ok {
-			if i == 2 {
-				above.X += 0
+			if i == 0 || i == 3 {
+				above.X += 10
 			}
-			if i == 0 {
-				above.X += 12
-				above.Y += 40
-			}
-			if i == 5 {
+			if i == 1 || i == 6 {
 				above.X -= 10
 			}
-			if !above.Inside(path, nil) { //, &opts) {
+			if i == 0 || i == 1 {
+				above.Y += 10
+			}
+			if i == 3 || i == 6 {
+				above.Y -= 10
+			}
+			//if i == 2 {
+			//	above.X += 0
+			//}
+			//if i == 0 {
+			//	above.X += 12
+			//	above.Y += 40
+			//}
+			//if i == 5 {
+			//	above.X -= 10
+			//}
+			inside := pnpoly(path, above)
+
+			if !inside { //!above.Inside(path, nil) { //, &opts) {
 				gc.SetColor(color.NRGBA{0, 0, 0, 0xFF})
 			}
 			gc.DrawLine(above.X, above.Y, (rect.Max.X-rect.Min.X)/2+rect.Min.X, (rect.Max.Y-rect.Min.Y)/2+rect.Min.Y)

@@ -68,7 +68,7 @@ func TestTerrarium(t *testing.T) {
 	println("** NewGrid:", time.Now().Sub(start2).String())
 	paths, aboveMap := grid.Paths(float64(width), float64(height), nil)
 	println(time.Now().Sub(start).String())
-	if err := savePathsPNG(paths, aboveMap, width, height, "terrarium.png"); err != nil {
+	if err := savePathsPNG(grid, paths, aboveMap, width, height, "terrarium.png"); err != nil {
 		t.Fatal(err)
 	}
 	return
@@ -83,7 +83,7 @@ func TestGrid(t *testing.T) {
 	println("** NewGrid:", time.Now().Sub(start2).String())
 	paths, aboveMap := grid.Paths(500, 500, nil)
 	println(time.Now().Sub(start).String())
-	if err := savePathsPNG(paths, aboveMap, 500, 500, "testpaths.png"); err != nil {
+	if err := savePathsPNG(grid, paths, aboveMap, 500, 500, "testpaths.png"); err != nil {
 		t.Fatal(err)
 	}
 	return

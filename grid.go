@@ -24,6 +24,10 @@ type Grid struct {
 	// Height is the height of the grid. This value is one less than the
 	// original height of the values that were passed to NewGrid().
 	Height int
+
+	values     []float64 // copy of the original values
+	level      float64   // contour level
+	complexity int       // original complexity
 }
 
 // NewGrid generates a grid of isoline cells from a series of values.
@@ -110,9 +114,12 @@ func NewGrid(values []float64, width, height int, level float64, complexity int)
 		}
 	}
 	return &Grid{
-		Cells:  cells,
-		Width:  gwidth,
-		Height: gheight,
+		Cells:      cells,
+		Width:      gwidth,
+		Height:     gheight,
+		values:     append([]float64(nil), values...),
+		level:      level,
+		complexity: complexity,
 	}
 }
 
