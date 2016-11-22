@@ -205,23 +205,21 @@ func (lg *lineGatherer) reduceLines() int {
 		}
 	}
 	var count int
-	// close paths
+	// close and count the paths and count
 	for i := 0; i < len(lg.lines); i++ {
 		if lg.lines[i].deleted {
 			continue
 		}
-		if false {
-			// make sure that the paths close at exact points
-			if lg.lines[i].first() != lg.lines[i].last() {
-				// the path does not close
-				if lg.lines[i].first() == lg.lines[i].last() {
-					// the starting and ending points of the path are very close,
-					// just switch assign the first to the last.
-					lg.lines[i].points[len(lg.lines[i].points)-1] = lg.lines[i].points[0]
-				} else {
-					// add a point to the end
-					lg.lines[i].points = append(lg.lines[i].points, lg.lines[i].points[0])
-				}
+		// make sure that the paths close at exact points
+		if lg.lines[i].first() != lg.lines[i].last() {
+			// the path does not close
+			if lg.lines[i].first() == lg.lines[i].last() {
+				// the starting and ending points of the path are very close,
+				// just switch assign the first to the last.
+				lg.lines[i].points[len(lg.lines[i].points)-1] = lg.lines[i].points[0]
+			} else {
+				// add a point to the end
+				lg.lines[i].points = append(lg.lines[i].points, lg.lines[i].points[0])
 			}
 		}
 		count++
@@ -245,6 +243,7 @@ func (lg *lineGatherer) addCell(
 		// |         |
 		// |         |
 		// o---------o
+		// all is above
 		lg.above = true
 	} else if cell.Case == 15 {
 		// •---------•
@@ -482,6 +481,7 @@ func pathIsClockwise(path Polygon) bool {
 	}
 	return (signedArea / 2) > 0
 }
+
 func reverseWinding(path Polygon) {
 	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
 		path[i], path[j] = path[j], path[i]
@@ -489,20 +489,10 @@ func reverseWinding(path Polygon) {
 }
 
 func pnpoly(path Polygon, test Point) bool {
-	vertx := make([]float64, len(path))
-	verty := make([]float64, len(path))
-	for i := 0; i < len(path); i++ {
-		vertx[i] = path[i].X
-		verty[i] = path[i].Y
-	}
-	return pnpoly_(len(vertx), vertx, verty, test.X, test.Y)
-}
-
-func pnpoly_(nvert int, vertx, verty []float64, testx, testy float64) bool {
 	var c bool
-	for i, j := 0, nvert-1; i < nvert; j, i = i, i+1 {
-		if ((verty[i] > testy) != (verty[j] > testy)) &&
-			(testx < (vertx[j]-vertx[i])*(testy-verty[i])/(verty[j]-verty[i])+vertx[i]) {
+	for i, j := 0, len(path)-1; i < len(path); j, i = i, i+1 {
+		if ((path[i].Y > test.Y) != (path[j].Y > test.Y)) &&
+			(test.X < (path[j].X-path[i].X)*(test.Y-path[i].Y)/(path[j].Y-path[i].Y)+path[i].X) {
 			c = !c
 		}
 	}
