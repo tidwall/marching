@@ -13,10 +13,15 @@ type DrawOptions struct {
 	LineWidth   float64
 	NoFill      bool
 	NoStroke    bool
+	Simplify    int
 }
 
 func (grid *Grid) Draw(dst *image.RGBA, x, y, width, height float64, opts *DrawOptions) {
-	paths := grid.Paths(width, height)
+	var simplify int
+	if opts != nil {
+		simplify = opts.Simplify
+	}
+	paths := grid.pathsWithOptions(width, height, simplify, nil)
 	gc := gg.NewContextForRGBA(dst)
 
 	// fill

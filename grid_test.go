@@ -98,6 +98,7 @@ func TestTerrariumMulti(t *testing.T) {
 			StrokeColor: sc,
 			FillColor:   fc,
 			LineWidth:   2.0,
+			Simplify:    2,
 		})
 		fmt.Printf("... %v %v\n", level, time.Now().Sub(start2).String())
 	}
