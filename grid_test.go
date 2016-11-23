@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -44,6 +45,72 @@ var (
 	testBLevel  float64 = 2
 )
 
+func TestTerrariumMulti(t *testing.T) {
+	f, err := os.Open("12_770_1644-12_774_1647.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	img1, err := png.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	img := image.NewRGBA(img1.Bounds())
+	draw.Draw(img, img.Bounds(), img1, image.ZP, draw.Src)
+	width, height := img.Bounds().Size().X, img.Bounds().Size().Y
+	values := make([]float64, width*height)
+	var min, max float64
+	for i, j := 0, 0; i < len(img.Pix); i, j = i+4, j+1 {
+		red := float64(img.Pix[i+0])
+		green := float64(img.Pix[i+1])
+		blue := float64(img.Pix[i+2])
+		meters := (red*256 + green + blue/256) - 32768
+		values[j] = meters
+		if i == 0 {
+			min, max = meters, meters
+		} else {
+			if meters < min {
+				min = meters
+			} else if meters > max {
+				max = meters
+			}
+		}
+	}
+	interval := 100.0
+	min = math.Floor(min/interval) * interval
+	max = math.Ceil(max/interval) * interval
+	dst := image.NewRGBA(image.Rect(0, 0, width, height))
+	start := time.Now()
+	//min = 300
+	//max = min + interval
+	for level := min; level < max; level += interval {
+		start2 := time.Now()
+		grid := NewGrid(values, width, height, level, 0)
+		var sc color.Color
+		var fc color.Color
+		if math.Mod(level, 500) == 0 {
+			sc = color.NRGBA{0, 0, 0, 0xff}
+		} else {
+			sc = color.NRGBA{0, 0, 0, 0x77}
+		}
+		fc = color.NRGBA{0, 0, 0, 0x33}
+		grid.Draw(dst, 0, 0, float64(width), float64(height), &DrawOptions{
+			StrokeColor: sc,
+			FillColor:   fc,
+			LineWidth:   2.0,
+		})
+		fmt.Printf("... %v %v\n", level, time.Now().Sub(start2).String())
+	}
+	println(time.Now().Sub(start).String())
+	f2, err := os.Create("terrarium-multi.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(f2, dst); err != nil {
+		t.Fatal(err)
+	}
+	return
+}
 func TestTerrarium(t *testing.T) {
 	f, err := os.Open("12_770_1644-12_774_1647.png")
 	if err != nil {
@@ -70,7 +137,7 @@ func TestTerrarium(t *testing.T) {
 	grid := NewGrid(values, width, height, 700, 0)
 	println("** NewGrid:", time.Now().Sub(start2).String())
 	aboveMap := make(map[int][]float64)
-	paths := grid.pathsWithOptions(float64(width), float64(height), aboveMap)
+	paths := grid.pathsWithOptions(float64(width), float64(height), 4, aboveMap)
 	println(time.Now().Sub(start).String())
 	if err := testSavePathsPNG(grid, paths, aboveMap, width, height, "terrarium.png"); err != nil {
 		t.Fatal(err)
@@ -87,64 +154,13 @@ func TestGrid(t *testing.T) {
 	grid := NewGrid(values, width, height, level, complexity)
 	println("** NewGrid:", time.Now().Sub(start2).String())
 	aboveMap := make(map[int][]float64)
-	paths := grid.pathsWithOptions(500, 500, aboveMap)
+	paths := grid.pathsWithOptions(500, 500, 1, aboveMap)
 	println(time.Now().Sub(start).String())
 	if err := testSavePathsPNG(grid, paths, aboveMap, 500, 500, "testpaths.png"); err != nil {
 		t.Fatal(err)
 	}
-	return
-	//if len(grid.Cells) != (width-1)*(height-1) {
-	//	t.Fatalf("expected %v, got %v", (width-1)*(height-1), len(grid.Cells))
-	//}
-	println(grid.Cells[0].Case, len(grid.Cells))
-	//	return
-	/*
-		if len(grid.Cells) != len(testACases) {
-			t.Fatalf("expected %v, got %v", len(testACases), len(grid.Cells))
-		}
-			if false {
-				for i := 0; i < len(grid.Cells); i++ {
-					if testACases[i] != grid.Cells[i].Case {
-						t.Fatalf("expected %v, got %v for #%d", testACases[i], grid.Cells[i].Case, i)
-
-					}
-				}
-			}
-	*/
-	/*
-		paths := grid.Paths(500, 500, nil)
-		println(time.Now().Sub(start).String())
-		println(paths)
-		return
-		img := grid.Image(500, 500, &ImageOptions{
-			Marks: true, //false, //true,
-			//FillColor:   color.NRGBA{0xff, 0, 0, 0xff},
-			//StrokeColor: color.NRGBA{0, 0, 0, 0xff},
-			//NoStroke:    true,
-			//LineWidth: 10,
-			//ExpandEdges: true,
-		})
-		println(time.Now().Sub(start).String())
-		var buf bytes.Buffer
-		if err := png.Encode(&buf, img); err != nil {
-			t.Fatal(err)
-		}
-		ioutil.WriteFile("testgrid.png", buf.Bytes(), 0600)
-	*/
 }
 
-/*
-func TestSpline(t *testing.T) {
-	X := []float64{
-		0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-	}
-	Y := []float64{
-		5, 20, 10, 13, 4, 1, 8, 12, 14, 9,
-	}
-	s := spline.Spline{}
-
-}
-*/
 func testSavePathsPNG(grid *Grid, paths [][][]float64, aboveMap map[int][]float64, width, height int, filePath string) error {
 	gc := gg.NewContext(width, height)
 	gc.SetColor(color.White)
@@ -189,12 +205,12 @@ func testSavePathsPNG(grid *Grid, paths [][][]float64, aboveMap map[int][]float6
 	// draw outline
 	if true {
 		for i, path := range paths {
-			rect := polygon(path).rect()
-			gc.MoveTo(rect.min[0], rect.min[1])
-			gc.LineTo(rect.max[0], rect.min[1])
-			gc.LineTo(rect.max[0], rect.max[1])
-			gc.LineTo(rect.min[0], rect.max[1])
-			gc.LineTo(rect.min[0], rect.min[1])
+			min, max := polygon(path).rect()
+			gc.MoveTo(min[0], min[1])
+			gc.LineTo(max[0], min[1])
+			gc.LineTo(max[0], max[1])
+			gc.LineTo(min[0], max[1])
+			gc.LineTo(min[0], min[1])
 			gc.SetLineWidth(1)
 			//if i == 2 {
 			//	reverseWinding(path)
@@ -205,17 +221,17 @@ func testSavePathsPNG(grid *Grid, paths [][][]float64, aboveMap map[int][]float6
 				gc.SetColor(color.NRGBA{0xff, 0, 0, 0xFF})
 			}
 			gc.Stroke()
-			gc.DrawString(fmt.Sprintf("%d", i), rect.min[0]+2, rect.min[1]+12)
+			gc.DrawString(fmt.Sprintf("%d", i), min[0]+2, min[1]+12)
 			gc.Fill()
 			if above, ok := aboveMap[i]; ok {
 				inside := polygon(path).pointInside(above)
 				if !inside {
 					gc.SetColor(color.NRGBA{0, 0, 0, 0xFF})
 				}
-				gc.DrawLine(above[0], above[1], (rect.max[0]-rect.min[0])/2+rect.min[0], (rect.max[1]-rect.min[1])/2+rect.min[1])
+				gc.DrawLine(above[0], above[1], (max[0]-min[0])/2+min[0], (max[1]-min[1])/2+min[1])
 				gc.Stroke()
 				gc.DrawCircle(above[0], above[1], 6)
-				gc.DrawCircle((rect.max[0]-rect.min[0])/2+rect.min[0], (rect.max[1]-rect.min[1])/2+rect.min[1], 3)
+				gc.DrawCircle((max[0]-min[0])/2+min[0], (max[1]-min[1])/2+min[1], 3)
 				gc.Fill()
 			}
 		}
