@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"log"
 	"math"
 	"os"
 	"testing"
@@ -48,6 +49,8 @@ var (
 func TestTerrariumMulti(t *testing.T) {
 	f, err := os.Open("12_770_1644-12_774_1647.png")
 	if err != nil {
+		log.Print(err)
+		return
 		t.Fatal(err)
 	}
 	defer f.Close()
@@ -115,6 +118,8 @@ func TestTerrariumMulti(t *testing.T) {
 func TestTerrarium(t *testing.T) {
 	f, err := os.Open("12_770_1644-12_774_1647.png")
 	if err != nil {
+		log.Print(err)
+		return
 		t.Fatal(err)
 	}
 	defer f.Close()
