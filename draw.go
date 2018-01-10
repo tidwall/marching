@@ -73,3 +73,34 @@ func (grid *Grid) Draw(dst *image.RGBA, x, y, width, height float64, opts *DrawO
 		gc.Stroke()
 	}
 }
+
+func onedge(point []float64) bool {
+	return point[0] == 0 || point[0] == 1 || point[1] == 0 || point[1] == 1
+}
+
+// Lines returns individual linestrings that terminate at the edge.
+// This operation calls Paths and loops through each one breaking them
+// up into smaller segments.
+func (grid *Grid) Lines(width, height float64) [][][]float64 {
+	var lines [][][]float64
+	paths := grid.Paths(width, height)
+	for i := 0; i < len(paths); i++ {
+		path := paths[i]
+		var s int
+		for j := 1; j < len(path); j++ {
+			point := path[j]
+			if onedge(point) {
+				line := path[s : j+1]
+				if len(line) > 1 && (len(line) > 2 || !onedge(line[0]) || !onedge(line[1])) {
+					lines = append(lines, line)
+				}
+				s = j
+			}
+		}
+		line := path[s:]
+		if len(line) > 1 && (len(line) > 2 || !onedge(line[0]) || !onedge(line[1])) {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}

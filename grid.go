@@ -2,7 +2,10 @@
 // of values as specified in https://en.wikipedia.org/wiki/Marching_squares.
 package marching
 
-import "sort"
+import (
+	"math"
+	"sort"
+)
 
 // Cell represents a single isoline square.
 type Cell struct {
@@ -262,9 +265,8 @@ func (grid *Grid) pathsWithOptions(
 			paths[i] = path
 			i++
 		}
-
 	}
-	return paths
+	return reducePathPoints(paths)
 }
 
 // lineGatherer is responsible for converting grid cells into lines that can
@@ -742,4 +744,43 @@ func (p polygon) pointInside(test []float64) bool {
 		}
 	}
 	return c
+}
+
+// reducePathPoints removes all volumeless triangles segments
+// the shape remains the same. this is not a simplification.
+func reducePathPoints(paths [][][]float64) [][][]float64 {
+	for i, path := range paths {
+		npath := make([][]float64, 0, len(path))
+		for {
+			if len(path) < 3 {
+				npath = append(npath, path...)
+				break
+			}
+			if calcArea(path[0:3]) == 0 {
+				path[1] = path[0]
+			} else {
+				npath = append(npath, path[0])
+			}
+			path = path[1:]
+		}
+		paths[i] = npath
+	}
+	return paths
+}
+
+func angle(ax, ay, bx, by float64) float64 {
+	return math.Atan2(by-ay, bx-ax) * 360 / math.Pi
+}
+
+func calcArea(vertices [][]float64) float64 {
+	var total float64
+	for i, l := 0, len(vertices); i < l; i++ {
+		var addX = vertices[i][0]
+		var addY = vertices[(i+1)%len(vertices)][1]
+		var subX = vertices[(i+1)%len(vertices)][0]
+		var subY = vertices[i][1]
+		total += (addX * addY * 0.5)
+		total -= (subX * subY * 0.5)
+	}
+	return math.Abs(total)
 }
