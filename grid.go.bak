@@ -1,0 +1,281 @@
+// Package marching allows for generating isoline cells from a grid
+// of values as specified in https://en.wikipedia.org/wiki/Marching_squares.
+package marching
+
+import (
+	"math"
+)
+
+// Grid represents a grid of isoline cells.
+type Grid struct {
+	// Cells field is an array of isoline cells in pixel coordinates where
+	// the cell located at position (0,0) is the top-left cell and is at
+	// index zero. The cell at position (Width,Height) is the bottom-right cell
+	// and is the last item in the Cell array.
+	Cells []Cell
+	// Width is the width of the grid. This value is one less than the
+	// original width of the values that were passed to NewGrid().
+	Width int
+	// Height is the height of the grid. This value is one less than the
+	// original height of the values that were passed to NewGrid().
+	Height int
+
+	values []float64 // copy of the original values
+	level  float64   // contour level
+}
+
+// NewGrid generates a grid of isoline cells from a series of values.
+// The resulting Grid contains cells with case indexes compared to the
+// level param.
+func NewGrid(values []float64, width, height int, level float64) *Grid {
+	if len(values) != width*height {
+		panic("number of values are not equal to width multiplied by height")
+	}
+	if width <= 2 || height <= 2 {
+		panic("width or height are not greater than or equal to two")
+	}
+	gwidth := width - 1   // grid width
+	gheight := height - 1 // grid height
+	cells := make([]Cell, gwidth*gheight)
+	var vals [4]float64
+	var j int
+	for y := 0; y < gheight; y++ {
+		for x := 0; x < gwidth; x++ {
+			var cell Cell
+			// one-to-one value lookups
+			vals[0] = values[(y+0)*width+(x+0)]
+			vals[1] = values[(y+0)*width+(x+1)]
+			vals[2] = values[(y+1)*width+(x+1)]
+			vals[3] = values[(y+1)*width+(x+0)]
+			if vals[0] < level {
+				// top-left
+				cell.Case |= 0x8
+			}
+			if vals[1] < level {
+				// top-right
+				cell.Case |= 0x4
+			}
+			if vals[2] < level {
+				// bottom-right
+				cell.Case |= 0x2
+			}
+			if vals[3] < level {
+				// bottom-left
+				cell.Case |= 0x1
+			}
+			// determine if center of the cell is above the level. this is used
+			// to swap saddle points when needed.
+			cell.CenterAbove = (vals[0]+vals[1]+vals[2]+vals[3])/4 >= level
+			cells[j] = cell
+			j++
+		}
+	}
+	return &Grid{
+		Cells:  cells,
+		Width:  gwidth,
+		Height: gheight,
+		values: append([]float64{}, values...),
+		level:  level,
+	}
+}
+
+// bilinearInterpolation return the value that is contained between four
+// points. The x and y params must be between 0.0 - 1.0.
+func bilinearInterpolation(vals [4]float64, x, y float64) float64 {
+	return vals[3]*(1-x)*y + vals[2]*x*y + vals[0]*(1-x)*(1-y) + vals[1]*x*(1-y)
+}
+
+// Paths convert the grid into a series of closed paths.
+// Each path is a series of XY coordinate points where X is at
+// index zero and Y is at index one.
+// All paths follow the non-zero winding rule which makes that paths that are
+// clockwise are above the level param that was passed to NewGrid(), and paths
+// that are counter-clockwise are below the level. In other words the
+// clockwise paths are polygons and counter clockwise paths are holes.
+// The IsClockwise(path) function can be used to determine the winding
+// direction.
+func (grid *Grid) Paths(width, height float64) [][][2]float64 {
+	return grid.pathsWithOptions(width, height, 0, nil)
+}
+
+// IsClockwise returns true if the path is clockwise.
+func IsClockwise(path [][2]float64) bool {
+	return polygon(path).isClockwise()
+}
+
+// polygon is a helpful wrapper around a 3x deep array and provides
+// variuos handy functions.
+type polygon [][2]float64
+
+// rect returns the outmost boundaries of a polygon.
+func (p polygon) rect() (min, max []float64) {
+	if len(p) > 0 {
+		min = []float64{p[0][0], p[0][1]}
+		max = []float64{p[0][0], p[0][1]}
+		for i := 1; i < len(p); i++ {
+			if p[i][0] < min[0] {
+				min[0] = p[i][0]
+			} else if p[i][0] > max[0] {
+				max[0] = p[i][0]
+			}
+			if p[i][1] < min[1] {
+				min[1] = p[i][1]
+			} else if p[i][1] > max[1] {
+				max[1] = p[i][1]
+			}
+		}
+	}
+	return
+}
+
+// pathWithOptions return all polygon paths. When aboveMap is not nil the map
+// will be fill with points that are above the grid level where the map key is
+// the index of the path in the return values.
+func (grid *Grid) pathsWithOptions(
+	width, height float64,
+	simplify int,
+	aboveMap map[int][2]float64,
+) [][][2]float64 {
+	// widthM and heightM are used to help translate the lineGatherer points to
+	// the graphics pixel coordinates space.
+	widthM := float64(grid.Width * multi)
+	heightM := float64(grid.Height * multi)
+	lg := newLineGatherer(int(widthM), int(heightM))
+
+	// add the grid. this will produce all the lines that will in-turn become
+	// the return paths. count is the valid non-deleted lines that lineGatherer
+	// processed.
+	count := lg.addCells(grid.Cells, grid.Width, grid.Height, simplify)
+	var paths [][][2]float64
+	if count == 0 {
+		// having no lines means that the entire grid is above or below the level.
+		// we need to make at least one big path.
+		if lg.above {
+			// create one path that encompased the entire rect. clockwise.
+			paths = append(paths,
+				[][2]float64{{0, 0}, {width, 0}, {width, height}, {0, height}, {0, 0}},
+			)
+		} else {
+			// create one path that encompased the entire rect. counter-clockwise.
+			//	paths[0] = [][]float64{{0, 0}, {0, height}, {width, height}, {width, 0}, {0, 0}}
+		}
+	} else {
+		// we have lines. let's turn them to valid paths that the caller can use
+		paths = make([][][2]float64, count)
+		var i int
+		for _, line := range lg.lines {
+			if line.deleted {
+				// ignore deleted lines
+				continue
+			}
+			// wrap the path in a polygon type.
+			path := polygon(make([][2]float64, len(line.points)))
+			for j, point := range line.points {
+				// add each point and translate to callers coordinates space.
+				path[j] = [2]float64{float64(point.x) / widthM * width, float64(point.y) / heightM * height}
+			}
+			if line.aboved {
+				// the line contains a point that idenities an above level
+				// position. this point can be used to determine if the
+				// winding direction of the path is correct.
+				above := [2]float64{float64(line.above.x) / widthM * width, float64(line.above.y) / heightM * height}
+				if aboveMap != nil {
+					// the caller is requesting to store this point for
+					// later use.
+					aboveMap[i] = above
+				}
+				if path.pointInside(above) != path.isClockwise() {
+					// the point must be inside and the path must be clockwise,
+					// or the point must be outside and path must be
+					// counter-clockwise. let's reverse the winding of the
+					// path to ensure that this is the case.
+					path.reverseWinding()
+				}
+			}
+			// unwrap and assign to return array
+			paths[i] = path
+			i++
+		}
+	}
+	return reducePathPoints(paths)
+}
+
+// http://stackoverflow.com/a/1165943/424124
+func (p polygon) isClockwise() bool {
+	var signedArea float64
+	for i := 0; i < len(p); i++ {
+		if i == len(p)-1 {
+			signedArea += (p[i][0]*p[0][1] - p[0][0]*p[i][1])
+		} else {
+			signedArea += (p[i][0]*p[i+1][1] - p[i+1][0]*p[i][1])
+		}
+	}
+	return (signedArea / 2) > 0
+}
+
+// reverseWinding reverses the winding of a path
+func (p polygon) reverseWinding() {
+	for i, j := 0, len(p)-1; i < j; i, j = i+1, j-1 {
+		p[i], p[j] = p[j], p[i]
+	}
+}
+
+// pointInside tests if a point is inside a polygon
+func (p polygon) pointInside(test [2]float64) bool {
+	var c bool
+	for i, j := 0, len(p)-1; i < len(p); j, i = i, i+1 {
+		if ((p[i][1] > test[1]) != (p[j][1] > test[1])) &&
+			(test[0] < (p[j][0]-p[i][0])*(test[1]-p[i][1])/(p[j][1]-p[i][1])+p[i][0]) {
+			c = !c
+		}
+	}
+	return c
+}
+
+// reducePathPoints removes all volumeless triangles segments
+// the shape remains the same. this is not a simplification.
+func reducePathPoints(paths [][][2]float64) [][][2]float64 {
+	for i, path := range paths {
+		npath := make([][2]float64, 0, len(path))
+		for {
+			if len(path) < 3 {
+				npath = append(npath, path...)
+				break
+			}
+			if calcArea(path[0:3]) == 0 {
+				path[1] = path[0]
+			} else {
+				npath = append(npath, path[0])
+			}
+			path = path[1:]
+		}
+		// finally see if the first point needs to be dropped
+		if len(npath) >= 3 {
+			if calcArea([][2]float64{
+				npath[len(npath)-1], npath[0], npath[1],
+			}) == 0 {
+				npath = npath[1:]
+				npath[len(npath)-1] = npath[0]
+			}
+		}
+		paths[i] = npath
+	}
+	return paths
+}
+
+func angle(ax, ay, bx, by float64) float64 {
+	return math.Atan2(by-ay, bx-ax) * 360 / math.Pi
+}
+
+func calcArea(vertices [][2]float64) float64 {
+	var total float64
+	for i, l := 0, len(vertices); i < l; i++ {
+		var addX = vertices[i][0]
+		var addY = vertices[(i+1)%len(vertices)][1]
+		var subX = vertices[(i+1)%len(vertices)][0]
+		var subY = vertices[i][1]
+		total += (addX * addY * 0.5)
+		total -= (subX * subY * 0.5)
+	}
+	return math.Abs(total)
+}

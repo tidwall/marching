@@ -1,5 +1,3 @@
-// Package marching allows for generating isoline cells from a grid
-// of values as specified in https://en.wikipedia.org/wiki/Marching_squares.
 package marching
 
 import (
@@ -7,106 +5,77 @@ import (
 	"sort"
 )
 
+func Paths(values []float64, width, height int, level float64) [][][2]float64 {
+	cells := makeCells(values, width, height, level)
+	paths := makePaths(cells, width, height, 0)
+
+	return paths
+}
+
+func Lines(values []float64, width, height int, level float64) [][][2]float64 {
+	paths := Paths(values, width, height, level)
+	var lines [][][2]float64
+	for i := 0; i < len(paths); i++ {
+		path := paths[i]
+		var s int
+		for j := 1; j < len(path); j++ {
+			point := path[j]
+			if onedge(point, width, height) {
+				line := path[s : j+1]
+				if len(line) > 1 && (len(line) > 2 || !onedge(line[0], width, height) || !onedge(line[1], width, height)) {
+					lines = append(lines, line)
+				}
+				s = j
+			}
+		}
+		line := path[s:]
+		if len(line) > 1 && (len(line) > 2 || !onedge(line[0], width, height) || !onedge(line[1], width, height)) {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+func onedge(point [2]float64, width, height int) bool {
+	return point[0] == 0.5 || point[0] == float64(width)-0.5 || point[1] == 0.5 || point[1] == float64(height)-0.5
+}
+
+// multi is used as a grid cell multiplier for integer space.
+// It's nescessary to have enough divisible subspace to identity
+// where a point is "above" the requested level and to discover
+// connection points without approximation.
+// This value must be divisible by 16.
+const multi = 16
+
 // Cell represents a single isoline square.
-type Cell struct {
+type cellT struct {
 	// Case field can be a value between 0-15.
 	Case byte
 	// CenterAbove field indicates that the value in center of the cell
-	// is above the level that was passed to NewGrid().
+	// is above the level that was passed to makeCells().
 	CenterAbove bool
 }
 
-// Grid represents a grid of isoline cells.
-type Grid struct {
-	// Cells field is an array of isoline cells in pixel coordinates where
-	// the cell located at position (0,0) is the top-left cell and is at
-	// index zero. The cell at position (Width,Height) is the bottom-right cell
-	// and is the last item in the Cell array.
-	Cells []Cell
-	// Width is the width of the grid. This value is one less than the
-	// original width of the values that were passed to NewGrid().
-	Width int
-	// Height is the height of the grid. This value is one less than the
-	// original height of the values that were passed to NewGrid().
-	Height int
-
-	values     []float64 // copy of the original values
-	level      float64   // contour level
-	complexity int       // original complexity
-}
-
-// NewGrid generates a grid of isoline cells from a series of values.
-// The resulting Grid contains cells with case indexes compared to the
-// level param.
-// The complexity param can be used to increase or decrease the number
-// of grid cells.
-// Using a complexity of zero will result in a grid with the default
-// number of cells.
-func NewGrid(values []float64, width, height int, level float64, complexity int) *Grid {
+// makeCells ...
+func makeCells(values []float64, width, height int, level float64) []cellT {
 	if len(values) != width*height {
 		panic("number of values are not equal to width multiplied by height")
 	}
 	if width <= 2 || height <= 2 {
 		panic("width or height are not greater than or equal to two")
 	}
-	var pcmplx uint // positive complexity
-	var ncmplx uint // negative complexity
-	var gwidth int  // grid width
-	var gheight int // grid height
-	if complexity > 0 {
-		pcmplx = uint(complexity)
-		gwidth = (width - 1) << pcmplx
-		gheight = (height - 1) << pcmplx
-	} else if complexity < 0 {
-		ncmplx = uint(1 << uint(complexity*-1))
-		gwidth = (width - 1) >> ncmplx
-		gheight = (height - 1) >> ncmplx
-	} else {
-		gwidth = width - 1
-		gheight = height - 1
-	}
-	cells := make([]Cell, gwidth*gheight)
+	gwidth := width - 1   // grid width
+	gheight := height - 1 // grid height
+	cells := make([]cellT, gwidth*gheight)
 	var vals [4]float64
 	var j int
 	for y := 0; y < gheight; y++ {
 		for x := 0; x < gwidth; x++ {
-			var cell Cell
-			if complexity == 0 {
-				// one-to-one value lookups
-				vals[0] = values[(y+0)*width+(x+0)]
-				vals[1] = values[(y+0)*width+(x+1)]
-				vals[2] = values[(y+1)*width+(x+1)]
-				vals[3] = values[(y+1)*width+(x+0)]
-			} else if complexity > 0 {
-				// using high complexity. location values
-				// and use bilinear interpolation to convert
-				// to subvalues.
-				vals[0] = values[((y>>pcmplx)+0)*width+((x>>pcmplx)+0)]
-				vals[1] = values[((y>>pcmplx)+0)*width+((x>>pcmplx)+1)]
-				vals[2] = values[((y>>pcmplx)+1)*width+((x>>pcmplx)+1)]
-				vals[3] = values[((y>>pcmplx)+1)*width+((x>>pcmplx)+0)]
-				rx := x % (1 << pcmplx)
-				ry := y % (1 << pcmplx)
-				sx := float64(rx) / float64(int(1<<pcmplx))
-				sy := float64(ry) / float64(int(1<<pcmplx))
-				ex := sx + 1/float64(int(1<<pcmplx))
-				ey := sy + 1/float64(int(1<<pcmplx))
-				vals = [4]float64{
-					bilinearInterpolation(vals, sx, sy),
-					bilinearInterpolation(vals, ex, sy),
-					bilinearInterpolation(vals, ex, ey),
-					bilinearInterpolation(vals, sx, ey),
-				}
-			} else {
-				// using degraded complexity. locate nearest
-				// known values. this is a lossy operation and
-				// favors faster and simpler geometries over
-				// accuracy.
-				vals[0] = values[((y+0)<<ncmplx)*width+((x+0)<<ncmplx)]
-				vals[1] = values[((y+0)<<ncmplx)*width+((x+1)<<ncmplx)]
-				vals[2] = values[((y+1)<<ncmplx)*width+((x+1)<<ncmplx)]
-				vals[3] = values[((y+1)<<ncmplx)*width+((x+0)<<ncmplx)]
-			}
+			var cell cellT
+			// one-to-one value lookups
+			vals[0] = values[(y+0)*width+(x+0)]
+			vals[1] = values[(y+0)*width+(x+1)]
+			vals[2] = values[(y+1)*width+(x+1)]
+			vals[3] = values[(y+1)*width+(x+0)]
 			if vals[0] < level {
 				// top-left
 				cell.Case |= 0x8
@@ -130,50 +99,12 @@ func NewGrid(values []float64, width, height int, level float64, complexity int)
 			j++
 		}
 	}
-	return &Grid{
-		Cells:      cells,
-		Width:      gwidth,
-		Height:     gheight,
-		values:     append([]float64(nil), values...),
-		level:      level,
-		complexity: complexity,
-	}
+	return cells
 }
-
-// bilinearInterpolation return the value that is contained between four
-// points. The x and y params must be between 0.0 - 1.0.
-func bilinearInterpolation(vals [4]float64, x, y float64) float64 {
-	return vals[3]*(1-x)*y + vals[2]*x*y + vals[0]*(1-x)*(1-y) + vals[1]*x*(1-y)
-}
-
-// Paths convert the grid into a series of closed paths.
-// Each path is a series of XY coordinate points where X is at
-// index zero and Y is at index one.
-// All paths follow the non-zero winding rule which makes that paths that are
-// clockwise are above the level param that was passed to NewGrid(), and paths
-// that are counter-clockwise are below the level. In other words the
-// clockwise paths are polygons and counter clockwise paths are holes.
-// The IsClockwise(path) function can be used to determine the winding
-// direction.
-func (grid *Grid) Paths(width, height float64) [][][]float64 {
-	return grid.pathsWithOptions(width, height, 0, nil)
-}
-
-// IsClockwise returns true if the path is clockwise.
-func IsClockwise(path [][]float64) bool {
-	return polygon(path).isClockwise()
-}
-
-// multi is used as a grid cell multiplier for integer space.
-// It's nescessary to have enough divisible subspace to identity
-// where a point is "above" the requested level and to discover
-// connection points without approximation.
-// This value must be divisible by 16.
-const multi = 16
 
 // polygon is a helpful wrapper around a 3x deep array and provides
 // variuos handy functions.
-type polygon [][]float64
+type polygon [][2]float64
 
 // rect returns the outmost boundaries of a polygon.
 func (p polygon) rect() (min, max []float64) {
@@ -196,33 +127,65 @@ func (p polygon) rect() (min, max []float64) {
 	return
 }
 
-// pathWithOptions return all polygon paths. When aboveMap is not nil the map
-// will be fill with points that are above the grid level where the map key is
-// the index of the path in the return values.
-func (grid *Grid) pathsWithOptions(
-	width, height float64,
-	simplify int,
-	aboveMap map[int][]float64,
-) [][][]float64 {
+// http://stackoverflow.com/a/1165943/424124
+func (p polygon) isClockwise() bool {
+	var signedArea float64
+	for i := 0; i < len(p); i++ {
+		if i == len(p)-1 {
+			signedArea += (p[i][0]*p[0][1] - p[0][0]*p[i][1])
+		} else {
+			signedArea += (p[i][0]*p[i+1][1] - p[i+1][0]*p[i][1])
+		}
+	}
+	return (signedArea / 2) > 0
+}
+
+// reverseWinding reverses the winding of a path
+func (p polygon) reverseWinding() {
+	for i, j := 0, len(p)-1; i < j; i, j = i+1, j-1 {
+		p[i], p[j] = p[j], p[i]
+	}
+}
+
+// pointInside tests if a point is inside a polygon
+func (p polygon) pointInside(test [2]float64) bool {
+	var c bool
+	for i, j := 0, len(p)-1; i < len(p); j, i = i, i+1 {
+		if ((p[i][1] > test[1]) != (p[j][1] > test[1])) &&
+			(test[0] < (p[j][0]-p[i][0])*(test[1]-p[i][1])/(p[j][1]-p[i][1])+p[i][0]) {
+			c = !c
+		}
+	}
+	return c
+}
+
+// makePaths ...
+func makePaths(cells []cellT, width, height int, split int) [][][2]float64 {
+	width--
+	height--
 	// widthM and heightM are used to help translate the lineGatherer points to
 	// the graphics pixel coordinates space.
-	widthM := float64(grid.Width * multi)
-	heightM := float64(grid.Height * multi)
+	widthM := float64(width * multi)
+	heightM := float64(width * multi)
 	lg := newLineGatherer(int(widthM), int(heightM))
 
 	// add the grid. this will produce all the lines that will in-turn become
 	// the return paths. count is the valid non-deleted lines that lineGatherer
 	// processed.
-	count := lg.addGrid(grid, simplify)
-
-	var paths [][][]float64
+	count := lg.addCells(cells, width, height, 0, split)
+	var paths [][][2]float64
 	if count == 0 {
 		// having no lines means that the entire grid is above or below the level.
 		// we need to make at least one big path.
 		if lg.above {
 			// create one path that encompased the entire rect. clockwise.
 			paths = append(paths,
-				[][]float64{{0, 0}, {width, 0}, {width, height}, {0, height}, {0, 0}},
+				[][2]float64{
+					{0, 0},
+					{float64(width), 0},
+					{float64(width), float64(height)},
+					{0, float64(height)},
+					{0, 0}},
 			)
 		} else {
 			// create one path that encompased the entire rect. counter-clockwise.
@@ -230,7 +193,7 @@ func (grid *Grid) pathsWithOptions(
 		}
 	} else {
 		// we have lines. let's turn them to valid paths that the caller can use
-		paths = make([][][]float64, count)
+		paths = make([][][2]float64, count)
 		var i int
 		for _, line := range lg.lines {
 			if line.deleted {
@@ -238,21 +201,21 @@ func (grid *Grid) pathsWithOptions(
 				continue
 			}
 			// wrap the path in a polygon type.
-			path := polygon(make([][]float64, len(line.points)))
+			path := polygon(make([][2]float64, len(line.points)))
 			for j, point := range line.points {
 				// add each point and translate to callers coordinates space.
-				path[j] = []float64{float64(point.x) / widthM * width, float64(point.y) / heightM * height}
+				path[j] = [2]float64{float64(point.x) / widthM * float64(width), float64(point.y) / heightM * float64(height)}
 			}
 			if line.aboved {
 				// the line contains a point that idenities an above level
 				// position. this point can be used to determine if the
 				// winding direction of the path is correct.
-				above := []float64{float64(line.above.x) / widthM * width, float64(line.above.y) / heightM * height}
-				if aboveMap != nil {
-					// the caller is requesting to store this point for
-					// later use.
-					aboveMap[i] = above
-				}
+				above := [2]float64{float64(line.above.x) / widthM * float64(width), float64(line.above.y) / heightM * float64(height)}
+				// if aboveMap != nil {
+				// 	// the caller is requesting to store this point for
+				// 	// later use.
+				// 	aboveMap[i] = above
+				// }
 				if path.pointInside(above) != path.isClockwise() {
 					// the point must be inside and the path must be clockwise,
 					// or the point must be outside and path must be
@@ -266,9 +229,17 @@ func (grid *Grid) pathsWithOptions(
 			i++
 		}
 	}
+	// offset the paths by half pixel to align with in the input width/height
+	for i := 0; i < len(paths); i++ {
+		for j := 0; j < len(paths[i]); j++ {
+			paths[i][j][0] = paths[i][j][0] + 0.5
+			paths[i][j][1] = paths[i][j][1] + 0.5
+		}
+	}
 	return reducePathPoints(paths)
 }
 
+//
 // lineGatherer is responsible for converting grid cells into lines that can
 // later be used for generating closed paths.
 type lineGatherer struct {
@@ -351,12 +322,17 @@ func (lg *lineGatherer) joinLines(i, j int) {
 }
 
 // addSegment will add a two point line segment to the series of lines.
-func (lg *lineGatherer) addSegment(ax, ay, bx, by int, aboveX, aboveY int, hasAbove bool) {
-	lg.lines = append(lg.lines, line{
-		points: []point{{ax, ay}, {bx, by}},
-		above:  point{aboveX, aboveY},
-		aboved: hasAbove,
-	})
+func (lg *lineGatherer) addSegment(ax, ay, bx, by int, aboveX, aboveY int, hasAbove bool, split int) {
+	if split > 0 {
+		lg.addSegment(ax, ay, (ax+bx)/2, (ay+by)/2, aboveX, aboveY, hasAbove, split-1)
+		lg.addSegment((ax+bx)/2, (ay+by)/2, bx, by, aboveX, aboveY, hasAbove, split-1)
+	} else {
+		lg.lines = append(lg.lines, line{
+			points: []point{{ax, ay}, {bx, by}},
+			above:  point{aboveX, aboveY},
+			aboved: hasAbove,
+		})
+	}
 }
 
 // reduceLines will take all line segments and generate closed paths.
@@ -445,7 +421,7 @@ func (lg *lineGatherer) reduceLines(simplify int) int {
 					if i+1 >= len(line.points) {
 						break
 					}
-					a, b, c = a, line.points[i], line.points[i+1]
+					b, c = line.points[i], line.points[i+1]
 					i += 2
 				} else {
 					// add b
@@ -479,9 +455,10 @@ func (lg *lineGatherer) reduceLines(simplify int) int {
 }
 
 func (lg *lineGatherer) addCell(
-	cell Cell,
+	cell cellT,
 	x, y, width, height int,
 	gridWidth, gridHeight int,
+	split int,
 ) {
 	if cell.Case == 0 {
 		// o---------o
@@ -516,28 +493,28 @@ func (lg *lineGatherer) addCell(
 			// |\        |
 			// | \       |
 			// •---------o
-			lg.addSegment(bottomx, bottomy, leftx, lefty, rightx-one, topy+one, true)
+			lg.addSegment(bottomx, bottomy, leftx, lefty, rightx-one, topy+one, true, split)
 		case 2:
 			// o---------o
 			// |         |
 			// |        /|
 			// |       / |
 			// o---------•
-			lg.addSegment(rightx, righty, bottomx, bottomy, leftx+one, topy+one, true)
+			lg.addSegment(rightx, righty, bottomx, bottomy, leftx+one, topy+one, true, split)
 		case 3:
 			// o---------o
 			// |         |
 			// |---------|
 			// |         |
 			// •---------•
-			lg.addSegment(rightx, righty, leftx, lefty, topx, topy+one, true)
+			lg.addSegment(rightx, righty, leftx, lefty, topx, topy+one, true, split)
 		case 4:
 			// o---------•
 			// |       \ |
 			// |        \|
 			// |         |
 			// o---------o
-			lg.addSegment(topx, topy, rightx, righty, leftx+one, bottomy-one, true)
+			lg.addSegment(topx, topy, rightx, righty, leftx+one, bottomy-one, true, split)
 		case 5:
 			if !cell.CenterAbove {
 				// center below
@@ -546,8 +523,8 @@ func (lg *lineGatherer) addCell(
 				// |/       /|
 				// |       / |
 				// •---------o
-				lg.addSegment(topx, topy, leftx, lefty, leftx+one, topy+one, true)
-				lg.addSegment(bottomx, bottomy, rightx, righty, rightx-one, bottomy-one, true)
+				lg.addSegment(topx, topy, leftx, lefty, leftx+one, topy+one, true, split)
+				lg.addSegment(bottomx, bottomy, rightx, righty, rightx-one, bottomy-one, true, split)
 			} else {
 				// center above
 				// o---------•
@@ -555,8 +532,8 @@ func (lg *lineGatherer) addCell(
 				// |\       \|
 				// | \       |
 				// •---------o
-				lg.addSegment(topx, topy, rightx, righty, leftx+one, topy+one, true)
-				lg.addSegment(bottomx, bottomy, leftx, lefty, rightx-one, bottomy-one, true)
+				lg.addSegment(topx, topy, rightx, righty, leftx+one, topy+one, true, split)
+				lg.addSegment(bottomx, bottomy, leftx, lefty, rightx-one, bottomy-one, true, split)
 			}
 		case 6:
 			// o---------•
@@ -564,28 +541,28 @@ func (lg *lineGatherer) addCell(
 			// |    |    |
 			// |    |    |
 			// o---------•
-			lg.addSegment(topx, topy, bottomx, bottomy, leftx+one, lefty, true)
+			lg.addSegment(topx, topy, bottomx, bottomy, leftx+one, lefty, true, split)
 		case 7:
 			// o---------•
 			// | /       |
 			// |/        |
 			// |         |
 			// •---------•
-			lg.addSegment(topx, topy, leftx, lefty, leftx+one, topy+one, true)
+			lg.addSegment(topx, topy, leftx, lefty, leftx+one, topy+one, true, split)
 		case 8:
 			// •---------o
 			// | /       |
 			// |/        |
 			// |         |
 			// o---------o
-			lg.addSegment(leftx, lefty, topx, topy, rightx-one, bottomy-one, true)
+			lg.addSegment(leftx, lefty, topx, topy, rightx-one, bottomy-one, true, split)
 		case 9:
 			// •---------o
 			// |    |    |
 			// |    |    |
 			// |    |    |
 			// •---------o
-			lg.addSegment(bottomx, bottomy, topx, topy, rightx-one, righty, true)
+			lg.addSegment(bottomx, bottomy, topx, topy, rightx-one, righty, true, split)
 		case 10:
 			if !cell.CenterAbove {
 				// center below
@@ -594,8 +571,8 @@ func (lg *lineGatherer) addCell(
 				// |\       \|
 				// | \       |
 				// o---------•
-				lg.addSegment(rightx, righty, topx, topy, rightx-one, topy+one, true)
-				lg.addSegment(leftx, lefty, bottomx, bottomy, leftx+one, bottomy-one, false)
+				lg.addSegment(rightx, righty, topx, topy, rightx-one, topy+one, true, split)
+				lg.addSegment(leftx, lefty, bottomx, bottomy, leftx+one, bottomy-one, false, split)
 			} else {
 				// center above
 				// •---------o
@@ -603,8 +580,8 @@ func (lg *lineGatherer) addCell(
 				// |/       /|
 				// |       / |
 				// o---------•
-				lg.addSegment(topx, topy, leftx, lefty, rightx-one, topy+one, true)
-				lg.addSegment(bottomx, bottomy, rightx, righty, leftx+one, bottomy-one, true)
+				lg.addSegment(topx, topy, leftx, lefty, rightx-one, topy+one, true, split)
+				lg.addSegment(bottomx, bottomy, rightx, righty, leftx+one, bottomy-one, true, split)
 			}
 		case 11:
 			// •---------o
@@ -612,28 +589,28 @@ func (lg *lineGatherer) addCell(
 			// |        \|
 			// |         |
 			// •---------•
-			lg.addSegment(rightx, righty, topx, topy, rightx-one, topy+one, true)
+			lg.addSegment(rightx, righty, topx, topy, rightx-one, topy+one, true, split)
 		case 12:
 			// •---------•
 			// |         |
 			// |---------|
 			// |         |
 			// o---------o
-			lg.addSegment(leftx, lefty, rightx, righty, bottomx, bottomy-one, true)
+			lg.addSegment(leftx, lefty, rightx, righty, bottomx, bottomy-one, true, split)
 		case 13:
 			// •---------•
 			// |         |
 			// |        /|
 			// |       / |
 			// •---------o
-			lg.addSegment(bottomx, bottomy, rightx, righty, rightx-one, bottomy-one, true)
+			lg.addSegment(bottomx, bottomy, rightx, righty, rightx-one, bottomy-one, true, split)
 		case 14:
 			// •---------•
 			// |         |
 			// |\        |
 			// | \       |
 			// o---------•
-			lg.addSegment(leftx, lefty, bottomx, bottomy, leftx+one, bottomy-one, true)
+			lg.addSegment(leftx, lefty, bottomx, bottomy, leftx+one, bottomy-one, true, split)
 		}
 	}
 
@@ -647,10 +624,10 @@ func (lg *lineGatherer) addCell(
 			by := ay
 			if x == 0 {
 				// top-left corner
-				lg.addSegment(ax+multi/2, ay+multi/2, ax+multi/2, ay, 0, 0, false)
-				lg.addSegment(ax+multi/2, ay, bx, by, 0, 0, false)
+				lg.addSegment(ax+multi/2, ay+multi/2, ax+multi/2, ay, 0, 0, false, 0)
+				lg.addSegment(ax+multi/2, ay, bx, by, 0, 0, false, 0)
 			} else {
-				lg.addSegment(ax, ay, bx, by, 0, 0, false)
+				lg.addSegment(ax, ay, bx, by, 0, 0, false, 0)
 			}
 		}
 	} else if y == gridHeight-1 {
@@ -662,10 +639,10 @@ func (lg *lineGatherer) addCell(
 			by := ay
 			if x == gridWidth-1 {
 				// bottom-right corner
-				lg.addSegment(ax-multi/2, ay-multi/2, ax-multi/2, ay, 0, 0, false)
-				lg.addSegment(ax-multi/2, ay, bx, by, 0, 0, false)
+				lg.addSegment(ax-multi/2, ay-multi/2, ax-multi/2, ay, 0, 0, false, 0)
+				lg.addSegment(ax-multi/2, ay, bx, by, 0, 0, false, 0)
 			} else {
-				lg.addSegment(ax, ay, bx, by, 0, 0, false)
+				lg.addSegment(ax, ay, bx, by, 0, 0, false, 0)
 			}
 		}
 	}
@@ -678,10 +655,10 @@ func (lg *lineGatherer) addCell(
 			by := ay - multi
 			if y == gridHeight-1 {
 				// bottom-left corner
-				lg.addSegment(ax+multi/2, ay-multi/2, ax, ay-multi/2, 0, 0, false)
-				lg.addSegment(ax, ay-multi/2, bx, by, 0, 0, false)
+				lg.addSegment(ax+multi/2, ay-multi/2, ax, ay-multi/2, 0, 0, false, 0)
+				lg.addSegment(ax, ay-multi/2, bx, by, 0, 0, false, 0)
 			} else {
-				lg.addSegment(ax, ay, bx, by, 0, 0, false)
+				lg.addSegment(ax, ay, bx, by, 0, 0, false, 0)
 			}
 		}
 	} else if x == gridWidth-1 {
@@ -693,94 +670,165 @@ func (lg *lineGatherer) addCell(
 			by := ay + multi
 			if y == 0 {
 				// top-right corner
-				lg.addSegment(ax-multi/2, ay+multi/2, ax, ay+multi/2, 0, 0, false)
-				lg.addSegment(ax, ay+multi/2, bx, by, 0, 0, false)
+				lg.addSegment(ax-multi/2, ay+multi/2, ax, ay+multi/2, 0, 0, false, 0)
+				lg.addSegment(ax, ay+multi/2, bx, by, 0, 0, false, 0)
 			} else {
-				lg.addSegment(ax, ay, bx, by, 0, 0, false)
+				lg.addSegment(ax, ay, bx, by, 0, 0, false, 0)
 			}
 		}
 	}
 }
 
 // addGrid will add the cells from a grid and reduce the lines
-func (lg *lineGatherer) addGrid(grid *Grid, simplify int) int {
-	gwidth, gheight := grid.Width, grid.Height
-	for y := 0; y < grid.Height; y++ {
-		for x := 0; x < grid.Width; x++ {
-			cell := grid.Cells[y*grid.Width+x]
-			lg.addCell(cell, x, y, lg.width, lg.height, gwidth, gheight)
+func (lg *lineGatherer) addCells(cells []cellT, width, height int, simplify, split int) int {
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			cell := cells[y*width+x]
+			lg.addCell(cell, x, y, lg.width, lg.height, width, height, split)
 		}
 	}
 	return lg.reduceLines(simplify)
 }
 
-// http://stackoverflow.com/a/1165943/424124
-func (p polygon) isClockwise() bool {
-	var signedArea float64
-	for i := 0; i < len(p); i++ {
-		if i == len(p)-1 {
-			signedArea += (p[i][0]*p[0][1] - p[0][0]*p[i][1])
-		} else {
-			signedArea += (p[i][0]*p[i+1][1] - p[i+1][0]*p[i][1])
-		}
-	}
-	return (signedArea / 2) > 0
-}
+// func pathsLinearInterpolation(paths [][][2]float64, values []float64, width int, height int) [][][2]float64 {
+// 	for i := 0; i < len(paths); i++ {
+// 		for j := 0; j < len(paths[i]); j++ {
+// 			paths[i][j] = pointLinearInterpolation(paths[i][j], values, width, height)
+// 		}
+// 	}
+// 	return paths
+// }
 
-// reverseWinding reverses the winding of a path
-func (p polygon) reverseWinding() {
-	for i, j := 0, len(p)-1; i < j; i, j = i+1, j-1 {
-		p[i], p[j] = p[j], p[i]
-	}
-}
+// func pointLinearInterpolation(point [2]float64, values []float64, width int, height int) [2]float64 {
+// 	//return point
+// 	//if point == [2]float64{4, 2.5} {
+// 	fmt.Printf("%f ", point)
+// 	if math.Floor(point[0]) == point[0] {
+// 		if int(point[0]) > 0 {
+// 			v1 := values[int(point[1])*width+(int(point[0])-1)]
+// 			v2 := values[int(point[1])*width+int(point[0])]
+// 			var chg float64
+// 			fmt.Printf("X %f,%f ", v1, v2)
+// 			if v1 < v2 {
+// 				fmt.Printf("left ")
+// 				chg = (1 - (v1 / v2) - 0.5) * -1
+// 			} else if v1 > v2 {
+// 				fmt.Printf("right ")
+// 				chg = 1 - (v2 / v1) - 0.5
+// 			}
+// 			point[0] += chg
+// 			fmt.Printf("%f", chg)
+// 		}
+// 	} else {
+// 		if int(point[1]) > 0 {
+// 			v1 := values[(int(point[1])-1)*width+int(point[0])]
+// 			v2 := values[int(point[1])*width+int(point[0])]
+// 			var chg float64
+// 			fmt.Printf("Y %f,%f ", v1, v2)
+// 			if v1 < v2 {
+// 				fmt.Printf("up ")
+// 				chg = (1 - (v1 / v2) - 0.5) * -1
+// 			} else if v1 > v2 {
+// 				fmt.Printf("down ")
+// 				chg = 1 - (v2 / v1) - 0.5
+// 			}
+// 			point[1] += chg
+// 			fmt.Printf("%f", chg)
+// 		}
+// 	}
+// 	fmt.Printf("\n")
+// 	// 	y1 := int(point[1]) - 1
+// 	// 	y2 := int(point[1])
+// 	// 	fmt.Printf("%f -> %dx%d %dx%d\n", point, x1, y1, x2, y2)
+// 	// values[
+// 	//}
+// 	return point
+// }
 
-// pointInside tests if a point is inside a polygon
-func (p polygon) pointInside(test []float64) bool {
-	var c bool
-	for i, j := 0, len(p)-1; i < len(p); j, i = i, i+1 {
-		if ((p[i][1] > test[1]) != (p[j][1] > test[1])) &&
-			(test[0] < (p[j][0]-p[i][0])*(test[1]-p[i][1])/(p[j][1]-p[i][1])+p[i][0]) {
-			c = !c
-		}
-	}
-	return c
-}
+// func linearInterpolation(a float64, b float64, n float64) float64 {
+// 	return (1-n)*a + n*b
+// }
+
+// // reducePathPoints removes all volumeless triangles segments
+// // the shape remains the same. this is not a simplification.
+// func reducePathPoints(paths [][][2]float64) [][][2]float64 {
+// 	for i, path := range paths {
+// 		npath := make([][2]float64, 0, len(path))
+// 		for {
+// 			if len(path) < 3 {
+// 				npath = append(npath, path...)
+// 				break
+// 			}
+// 			if area(path[0:3]) == 0 {
+// 				path[1] = path[0]
+// 			} else {
+// 				npath = append(npath, path[0])
+// 			}
+// 			path = path[1:]
+// 		}
+// 		// finally see if the first point needs to be dropped
+// 		if len(npath) >= 3 {
+// 			if area([][2]float64{
+// 				npath[len(npath)-1], npath[0], npath[1],
+// 			}) == 0 {
+// 				npath = npath[1:]
+// 				npath[len(npath)-1] = npath[0]
+// 			}
+// 		}
+// 		paths[i] = npath
+// 	}
+// 	return paths
+// }
+// func area(t [][2]float64) float64 {
+// 	return math.Abs((t[0][0]-t[2][0])*(t[1][1]-t[0][1]) - (t[0][0]-t[1][0])*(t[2][1]-t[0][1]))
+// }
 
 // reducePathPoints removes all volumeless triangles segments
 // the shape remains the same. this is not a simplification.
-func reducePathPoints(paths [][][]float64) [][][]float64 {
-	for i, path := range paths {
-		npath := make([][]float64, 0, len(path))
-		for {
+func reducePathPoints(paths [][][2]float64) [][][2]float64 {
+	var npaths [][][2]float64
+	for _, path := range paths {
+		path = append([][2]float64{}, path...) // copy the path
+		if len(path) < 2 {
+			continue
+		} else if len(path) == 2 {
+			npaths = append(npaths, path)
+			continue
+		}
+		var npath [][2]float64
+		for len(path) > 0 {
 			if len(path) < 3 {
 				npath = append(npath, path...)
 				break
 			}
-			if calcArea(path[0:3]) == 0 {
+			if straight(path[0], path[1], path[2]) {
+				//if area(path[0], path[1], path[2]) == 0 {
 				path[1] = path[0]
 			} else {
 				npath = append(npath, path[0])
 			}
 			path = path[1:]
 		}
-		paths[i] = npath
+
+		// if len(npath) > 3 && straight(npath[len(npath)-1], npath[0], npath[1]) {
+		// 	npath = npath[1:]
+		// 	npath[len(npath)-1] = npath[0]
+		// }
+		npaths = append(npaths, npath)
 	}
-	return paths
+	return npaths
+}
+func area(a, b, c [2]float64) float64 {
+	return math.Abs((a[0]-c[0])*(b[1]-a[1]) - (a[0]-b[0])*(c[1]-a[1]))
 }
 
-func angle(ax, ay, bx, by float64) float64 {
-	return math.Atan2(by-ay, bx-ax) * 360 / math.Pi
-}
-
-func calcArea(vertices [][]float64) float64 {
-	var total float64
-	for i, l := 0, len(vertices); i < l; i++ {
-		var addX = vertices[i][0]
-		var addY = vertices[(i+1)%len(vertices)][1]
-		var subX = vertices[(i+1)%len(vertices)][0]
-		var subY = vertices[i][1]
-		total += (addX * addY * 0.5)
-		total -= (subX * subY * 0.5)
-	}
-	return math.Abs(total)
+func straight(a, b, c [2]float64) bool {
+	return area(a, b, c) == 0
+	// if a[0] == b[0] && b[0] == c[0] {
+	// 	return true
+	// }
+	// if a[1] == b[1] && b[1] == c[1] {
+	// 	return true
+	// }
+	// return false
 }

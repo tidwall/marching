@@ -15,37 +15,6 @@ import (
 	"github.com/fogleman/gg"
 )
 
-var (
-	testAValues = []float64{
-		1, 1, 1, 1, 1,
-		1, 2, 3, 2, 1,
-		1, 3, 3, 3, 1,
-		1, 2, 3, 2, 1,
-		1, 1, 1, 1, 1,
-	}
-	testAWidth          = 5
-	testAHeight         = 5
-	testALevel  float64 = 2
-	testACases          = []byte{
-		13, 12, 12, 14,
-		9, 0, 0, 6,
-		9, 0, 0, 6,
-		11, 3, 3, 7,
-	}
-
-	testBValues = []float64{
-		2, 1, 3, 3, 1, 3,
-		1, 3, 3, 3, 1, 1,
-		1, 3, 0, 3, 3, 1,
-		3, 3, 3, 3, 3, 1,
-		1, 1, 3, 1, 1, 1,
-		2, 1, 3, 1, 1, 2,
-	}
-	testBWidth          = 6
-	testBHeight         = 6
-	testBLevel  float64 = 2
-)
-
 func TestTerrariumMulti(t *testing.T) {
 	f, err := os.Open("12_770_1644-12_774_1647.png")
 	if err != nil {
@@ -88,7 +57,7 @@ func TestTerrariumMulti(t *testing.T) {
 	//max = min + interval
 	for level := min; level < max; level += interval {
 		start2 := time.Now()
-		grid := NewGrid(values, width, height, level, 0)
+		grid := NewGrid(values, width, height, level)
 		var sc color.Color
 		var fc color.Color
 		if math.Mod(level, 500) == 0 {
@@ -140,9 +109,9 @@ func TestTerrarium(t *testing.T) {
 	}
 	start := time.Now()
 	start2 := time.Now()
-	grid := NewGrid(values, width, height, 700, 0)
+	grid := NewGrid(values, width, height, 700)
 	println("** NewGrid:", time.Now().Sub(start2).String())
-	aboveMap := make(map[int][]float64)
+	aboveMap := make(map[int][2]float64)
 	paths := grid.pathsWithOptions(float64(width), float64(height), 4, aboveMap)
 	println(time.Now().Sub(start).String())
 	if err := testSavePathsPNG(grid, paths, aboveMap, width, height, "terrarium.png"); err != nil {
@@ -156,18 +125,19 @@ func TestGrid(t *testing.T) {
 	start := time.Now()
 	start2 := time.Now()
 	values, width, height, level := testBValues, testBWidth, testBHeight, testBLevel
-	complexity := 0
-	grid := NewGrid(values, width, height, level, complexity)
+	grid := NewGrid(values, width, height, level)
 	println("** NewGrid:", time.Now().Sub(start2).String())
-	aboveMap := make(map[int][]float64)
-	paths := grid.pathsWithOptions(500, 500, 1, aboveMap)
+	println("  width:", testBWidth, "height:", testBHeight)
+	aboveMap := make(map[int][2]float64)
+	paths := grid.pathsWithOptions(500, 500, 0, aboveMap)
 	println(time.Now().Sub(start).String())
+
 	if err := testSavePathsPNG(grid, paths, aboveMap, 500, 500, "testpaths.png"); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func testSavePathsPNG(grid *Grid, paths [][][]float64, aboveMap map[int][]float64, width, height int, filePath string) error {
+func testSavePathsPNG(grid *Grid, paths [][][2]float64, aboveMap map[int][2]float64, width, height int, filePath string) error {
 	gc := gg.NewContext(width, height)
 	gc.SetColor(color.White)
 	gc.DrawRectangle(0, 0, float64(width), float64(height))
