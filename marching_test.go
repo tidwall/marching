@@ -15,7 +15,7 @@ import (
 var (
 	testAValues = []float64{
 		1, 1, 1, 1, 1,
-		1, 1, 3, 2, 1,
+		1, 2, 3, 2, 1,
 		1, 3, 3, 3, 1,
 		1, 2, 3, 2, 1,
 		1, 1, 1, 1, 1,
@@ -44,6 +44,15 @@ var (
 	testBLevel  float64 = 2
 )
 
+func TestABC(t *testing.T) {
+	b := 3.0
+	a := 1.0
+
+	level := 2.0
+	p := (1 - ((level - a) / (b - a))) + 0.25
+	fmt.Printf("%v\n", p)
+}
+
 func TestMarching(t *testing.T) {
 	var values []float64
 	var width, height int
@@ -71,13 +80,13 @@ func TestMarching(t *testing.T) {
 		level = testALevel
 	}
 
-	//values, width, height = BilinearInterpolationValues(values, width, height)
-	// values, width, height = BilinearInterpolationValues(values, width, height)
-	// values, width, height = BilinearInterpolationValues(values, width, height)
-	// values, width, height = BilinearInterpolationValues(values, width, height)
+	//values, width, height = BilinearInterpolation(values, width, height)
+	// values, width, height = BilinearInterpolation(values, width, height)
+	// values, width, height = BilinearInterpolation(values, width, height)
+	// values, width, height = BilinearInterpolation(values, width, height)
 
 	//paths := Lines(values, width, height, level)
-	paths := Curve(values, width, height, level)
+	paths := Paths(values, width, height, level)
 	//paths = SimplifyPaths(paths, 0.20)
 	testSavePaths(paths, values,
 		float64(width), float64(height),
@@ -99,19 +108,40 @@ func testSavePaths(paths [][][2]float64, values []float64,
 	gc.DrawRectangle(0, 0, imgWidth, imgHeight)
 	gc.Fill()
 
-	// draw grid
+	// // draw sample grid
+	// gc.SetDash(1, 3)
+	// gc.SetLineWidth(0.25)
+	// gc.SetColor(color.Black)
+	// for y := 0; y < int(orgWidth); y++ {
+	// 	for x := 0; x < int(orgHeight); x++ {
+	// 		gc.MoveTo(float64(x)/orgWidth*imgWidth, float64(y)/orgHeight*imgHeight)
+	// 		gc.LineTo(float64(x+1)/orgWidth*imgWidth, float64(y)/orgHeight*imgHeight)
+	// 		gc.LineTo(float64(x+1)/orgWidth*imgWidth, float64(y+1)/orgHeight*imgHeight)
+	// 		gc.LineTo(float64(x)/orgWidth*imgWidth, float64(y+1)/orgHeight*imgHeight)
+	// 		gc.LineTo(float64(x)/orgWidth*imgWidth, float64(y)/orgHeight*imgHeight)
+	// 		gc.Stroke()
+	// 	}
+	// }
+
+	// draw cell grid
+	gc.SetDash(1, 2)
+	gc.SetLineWidth(0.25)
+	gc.SetColor(color.Black)
+	for y := 0; y < int(orgWidth)-1; y++ {
+		for x := 0; x < int(orgHeight)-1; x++ {
+			gc.MoveTo((float64(x)+0.5)/orgWidth*imgWidth, (float64(y)+0.5)/orgHeight*imgHeight)
+			gc.LineTo((float64(x+1)+0.5)/orgWidth*imgWidth, (float64(y)+0.5)/orgHeight*imgHeight)
+			gc.LineTo((float64(x+1)+0.5)/orgWidth*imgWidth, (float64(y+1)+0.5)/orgHeight*imgHeight)
+			gc.LineTo((float64(x)+0.5)/orgWidth*imgWidth, (float64(y+1)+0.5)/orgHeight*imgHeight)
+			gc.LineTo((float64(x)+0.5)/orgWidth*imgWidth, (float64(y)+0.5)/orgHeight*imgHeight)
+			gc.Stroke()
+		}
+	}
+
+	// draw sample values
 	for y := 0; y < int(orgWidth); y++ {
 		for x := 0; x < int(orgHeight); x++ {
 			value := values[y*int(orgWidth)+x]
-			gc.MoveTo(float64(x)/orgWidth*imgWidth, float64(y)/orgHeight*imgHeight)
-			gc.LineTo(float64(x+1)/orgWidth*imgWidth, float64(y)/orgHeight*imgHeight)
-			gc.LineTo(float64(x+1)/orgWidth*imgWidth, float64(y+1)/orgHeight*imgHeight)
-			gc.LineTo(float64(x)/orgWidth*imgWidth, float64(y+1)/orgHeight*imgHeight)
-			gc.LineTo(float64(x)/orgWidth*imgWidth, float64(y)/orgHeight*imgHeight)
-			//gc.ClosePath()
-			gc.SetLineWidth(0.25)
-			gc.SetColor(color.NRGBA{0xCC, 0xCC, 0xCC, 0xFF})
-			gc.Stroke()
 			var s string
 			if value == math.Floor(value) {
 				s = fmt.Sprintf("%.0f", value)
@@ -121,7 +151,7 @@ func testSavePaths(paths [][][2]float64, values []float64,
 			sw, sh := gc.MeasureString(s)
 			gc.DrawString(s,
 				float64(x)/orgWidth*imgWidth+imgWidth/orgWidth/2-sw/2,
-				float64(y)/orgHeight*imgHeight+imgHeight/orgHeight/2+sh/2,
+				float64(y)/orgHeight*imgHeight+imgHeight/orgHeight/2+sh/2-2,
 			)
 		}
 	}
@@ -140,15 +170,17 @@ func testSavePaths(paths [][][2]float64, values []float64,
 	// gc.SetColor(color.NRGBA{0x88, 0xAA, 0xCC, 0xFF})
 	// gc.Fill()
 
+	gc.SetDash()
+	gc.SetLineWidth(2)
+	gc.SetColor(color.NRGBA{0xCC, 0x66, 0x66, 0xFF})
 	for _, path := range paths {
 		if len(path) > 2 {
-			gc.MoveTo(path[0][0]/orgWidth*imgWidth, path[0][1]/orgHeight*imgHeight)
-			for i := 1; i < len(path); i++ {
-				gc.LineTo(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight)
+			for i := 0; i < len(path)-1; i++ {
+				gc.MoveTo(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight)
+				gc.LineTo(path[i+1][0]/orgWidth*imgWidth, path[i+1][1]/orgHeight*imgHeight)
 			}
 			//gc.ClosePath()
-			gc.SetLineWidth(2)
-			gc.SetColor(color.NRGBA{0xCC, 0x66, 0x66, 0xFF})
+
 			gc.Stroke()
 			for i := 0; i < len(path); i++ {
 				gc.DrawCircle(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight, 2)
