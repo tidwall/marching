@@ -5,6 +5,7 @@ import (
 	"sort"
 )
 
+// Paths generates linestring paths from a sample of values.
 func Paths(values []float64, width, height int, level float64) [][][2]float64 {
 	cells := makeCells(values, width, height, level)
 	paths := makePaths(cells, width, height)
@@ -549,219 +550,23 @@ func (lg *lineGatherer) addCells(cells []cellT, width, height int) int {
 	return lg.reduceLines()
 }
 
-// reducePathPoints removes all volumeless triangles segments
-// the shape remains the same. this is not a simplification.
-func reducePathPoints(paths [][][2]float64) [][][2]float64 {
-	var npaths [][][2]float64
-	for _, path := range paths {
-		path = append([][2]float64{}, path...) // copy the path
-		if len(path) < 2 {
-			continue
-		} else if len(path) == 2 {
-			npaths = append(npaths, path)
-			continue
-		}
-		var npath [][2]float64
-		for len(path) > 0 {
-			if len(path) < 3 {
-				npath = append(npath, path...)
-				break
-			}
-			if straight(path[0], path[1], path[2]) {
-				path[1] = path[0]
-			} else {
-				npath = append(npath, path[0])
-			}
-			path = path[1:]
-		}
-		if straight(npath[len(npath)-1], npath[0], npath[1]) {
-			npath = npath[1:]
-			npath[len(npath)-1] = npath[0]
-		}
-		npaths = append(npaths, npath)
-	}
-	return npaths
-}
-
-func doublePathPoints(paths [][][2]float64) [][][2]float64 {
-	var npaths [][][2]float64
-	for _, path := range paths {
-		if len(path) == 0 {
-			continue
-		}
-		var npath [][2]float64
-
-		for i := 0; i < len(path)-1; i++ {
-			a := path[i]
-			b := path[i+1]
-			m := midpoint(a, b)
-			npath = append(npath, a, m, b)
-		}
-		npaths = append(npaths, npath)
-	}
-	return npaths
-}
-
-func area(a, b, c [2]float64) float64 {
-	return math.Abs((a[0]-c[0])*(b[1]-a[1]) - (a[0]-b[0])*(c[1]-a[1]))
-}
-
-func straight(a, b, c [2]float64) bool {
-	return area(a, b, c) == 0
-}
-
-func valueForXY(values []float64, width, height int, x, y int) float64 {
-	if x < 0 {
-		x = 0
-	} else if x > width-1 {
-		x = width - 1
-	}
-	if y < 0 {
-		y = 0
-	} else if y > height-1 {
-		y = height - 1
-	}
-	return values[y*width+x]
-}
-
-func BilinearInterpolation(values []float64, width, height int) (nvalues []float64, nwidth, nheight int) {
-	nwidth = width*2 - 1
-	nheight = height*2 - 1
-	nvalues = make([]float64, nwidth*nheight)
-	for y := 0; y < nheight; y++ {
-		for x := 0; x < nwidth; x++ {
-			var v float64
-			if y%2 == 0 {
-				if x%2 == 0 {
-					v = valueForXY(values, width, height, x/2, y/2)
-				} else {
-					v1 := valueForXY(values, width, height, x/2, y/2)
-					v2 := valueForXY(values, width, height, x/2+1, y/2)
-					v = (v1 + v2) / 2
-				}
-			} else {
-				if x%2 == 0 {
-					v1 := valueForXY(values, width, height, x/2, y/2)
-					v2 := valueForXY(values, width, height, x/2, y/2+1)
-					v = (v1 + v2) / 2
-				} else {
-					v1 := valueForXY(values, width, height, x/2, y/2)
-					v2 := valueForXY(values, width, height, x/2+1, y/2)
-					v3 := valueForXY(values, width, height, x/2, y/2+1)
-					v4 := valueForXY(values, width, height, x/2+1, y/2+1)
-					v = (v1 + v2 + v3 + v4) / 4
-				}
-			}
-			nvalues[y*nheight+x] = v
-		}
-	}
-	return nvalues, nwidth, nheight
-}
-
-// bilinearInterpolation return the value that is contained between four
-// points. The x and y params must be between 0.0 - 1.0.
-func bilinearInterpolation(vals [4]float64, x, y float64) float64 {
-	return vals[3]*(1-x)*y + vals[2]*x*y + vals[0]*(1-x)*(1-y) + vals[1]*x*(1-y)
-}
-
-// linearInterpolation return the value that is contained between two
-// points. The x params must be between 0.0 - 1.0.
-func linearInterpolation(vals [2]float64, x float64) float64 {
-	return (vals[1]-vals[0])*x + vals[0]
-}
-
-func interpolate(p0, p1 [2]float64, t float64) [2]float64 {
-	return [2]float64{p0[0] + t*(p1[0]-p0[0]), p0[1] + t*(p1[1]-p0[1])}
-}
-
-func newCurveFn(pts [][2]float64) func(t float64) [2]float64 {
-	if len(pts) < 2 {
-		return nil
-	} else if len(pts) == 2 {
-		return func(t float64) [2]float64 {
-			return interpolate(pts[0], pts[1], t)
-		}
-	} else if len(pts) == 3 {
-		return func(t float64) [2]float64 {
-			var a, b = interpolate(pts[0], pts[1], t), interpolate(pts[1], pts[2], t)
-			return interpolate(a, b, t)
-		}
-	}
-	var midPts = append(pts, make([][2]float64, len(pts)*(len(pts)-1)/2)...)
-	return func(t float64) [2]float64 {
-		for m, n := len(pts), len(pts)-1; n > 0; n-- {
-			for i := 0; i < n; i++ {
-				midPts[m+i] = interpolate(midPts[m+i-n-1], midPts[m+i-n], t)
-			}
-			m += n
-		}
-		return midPts[len(midPts)-1]
-	}
-}
-
-func lineLength(a, b [2]float64) float64 {
-	return math.Sqrt((a[0]-b[0])*(a[0]-b[0]) + (a[1]-b[1])*(a[1]-b[1]))
-}
-
-func pathLength(path [][2]float64) float64 {
-	var length float64
-	for i := 0; i < len(path)-1; i++ {
-		length += lineLength(path[i], path[i+1])
-	}
-	return length
-}
-
-func Curve(paths [][][2]float64) [][][2]float64 {
-	var npaths [][][2]float64
-	for i := 0; i < len(paths); i++ {
-		var fn = newCurveFn(paths[i])
-		var npath [][2]float64
-		length := pathLength(paths[i])
-		segments := int(math.Ceil(length))
-		if segments < 4 {
-			segments = 4
-		}
-		npath = append(npath, paths[i][0])
-		for t := 1; t <= segments; t++ {
-			var cur = fn(float64(t) / float64(segments))
-			npath = append(npath, [2]float64{cur[0], cur[1]})
-		}
-		npaths = append(npaths, npath)
-	}
-	return npaths
-}
-
-func midpoint(a, b [2]float64) [2]float64 {
-	return [2]float64{(a[0] + b[0]) / 2, (a[1] + b[1]) / 2}
-}
-
 func interpolatePaths(paths [][][2]float64, values []float64, level float64, width, height int) [][][2]float64 {
 	for i := 0; i < len(paths); i++ {
-		paths[i] = interpolatePath(paths[i], values, level, width, height)
+		for j := 0; j < len(paths[i]); j++ {
+			p := paths[i][j]
+			if math.Floor(p[1]) == p[1] {
+				v1 := values[int(p[1]-1)*width+int(p[0])]
+				v2 := values[int(p[1])*width+int(p[0])]
+				q := (1.0 - ((level - v2) / (v1 - v2)))
+				p[1] = p[1] - 0.5 + q
+			} else {
+				v1 := values[int(p[1])*width+int(p[0]-1)]
+				v2 := values[int(p[1])*width+int(p[0])]
+				q := (1.0 - ((level - v2) / (v1 - v2)))
+				p[0] = p[0] - 0.5 + q
+			}
+			paths[i][j] = p
+		}
 	}
 	return paths
-}
-
-func interpolatePath(
-	path [][2]float64,
-	values []float64,
-	level float64,
-	width, height int,
-) [][2]float64 {
-	for i := 0; i < len(path); i++ {
-		p := path[i]
-		if math.Floor(p[1]) == p[1] {
-			v1 := values[int(p[1]-1)*width+int(p[0])]
-			v2 := values[int(p[1])*width+int(p[0])]
-			q := (1.0 - ((level - v2) / (v1 - v2)))
-			p[1] = p[1] - 0.5 + q
-		} else {
-			v1 := values[int(p[1])*width+int(p[0]-1)]
-			v2 := values[int(p[1])*width+int(p[0])]
-			q := (1.0 - ((level - v2) / (v1 - v2)))
-			p[0] = p[0] - 0.5 + q
-		}
-		path[i] = p
-	}
-	return path
 }

@@ -2,11 +2,8 @@ package marching
 
 import (
 	"fmt"
-	"image"
 	"image/color"
-	"image/png"
 	"math"
-	"os"
 	"testing"
 
 	"github.com/fogleman/gg"
@@ -44,59 +41,19 @@ var (
 	testBLevel  float64 = 2
 )
 
-func TestABC(t *testing.T) {
-	b := 3.0
-	a := 1.0
-
-	level := 2.0
-	p := (1 - ((level - a) / (b - a))) + 0.25
-	fmt.Printf("%v\n", p)
-}
-
 func TestMarching(t *testing.T) {
 	var values []float64
 	var width, height int
 	var level float64
-	if false {
-		f, _ := os.Open("tiles/14_3098_6576.png")
-		img, _ := png.Decode(f)
-		values = TerrariumValues(img.(*image.RGBA))
-		var min, max float64
-		for i, v := range values {
-			if i == 0 {
-				min, max = v, v
-			} else if v < min {
-				min = v
-			} else if v > max {
-				max = v
-			}
-		}
-		level = math.Floor((min + max) / 2)
-		width, height = 256, 256
-	} else {
-		values = testAValues
-		width = testAWidth
-		height = testAHeight
-		level = testALevel
-	}
-
-	//values, width, height = BilinearInterpolation(values, width, height)
-	// values, width, height = BilinearInterpolation(values, width, height)
-	// values, width, height = BilinearInterpolation(values, width, height)
-	// values, width, height = BilinearInterpolation(values, width, height)
-
-	//paths := Lines(values, width, height, level)
+	values = testAValues
+	width = testAWidth
+	height = testAHeight
+	level = testALevel
 	paths := Paths(values, width, height, level)
-	//paths = SimplifyPaths(paths, 0.20)
 	testSavePaths(paths, values,
 		float64(width), float64(height),
 		256, 256,
 		"testpaths.png")
-
-	// if err := testSavePathsPNG(nil, paths, nil, 500, 500, "testpaths.png"); err != nil {
-	// 	t.Fatal(err)
-	// }
-
 }
 
 func testSavePaths(paths [][][2]float64, values []float64,
@@ -107,21 +64,6 @@ func testSavePaths(paths [][][2]float64, values []float64,
 	gc.SetColor(color.White)
 	gc.DrawRectangle(0, 0, imgWidth, imgHeight)
 	gc.Fill()
-
-	// // draw sample grid
-	// gc.SetDash(1, 3)
-	// gc.SetLineWidth(0.25)
-	// gc.SetColor(color.Black)
-	// for y := 0; y < int(orgWidth); y++ {
-	// 	for x := 0; x < int(orgHeight); x++ {
-	// 		gc.MoveTo(float64(x)/orgWidth*imgWidth, float64(y)/orgHeight*imgHeight)
-	// 		gc.LineTo(float64(x+1)/orgWidth*imgWidth, float64(y)/orgHeight*imgHeight)
-	// 		gc.LineTo(float64(x+1)/orgWidth*imgWidth, float64(y+1)/orgHeight*imgHeight)
-	// 		gc.LineTo(float64(x)/orgWidth*imgWidth, float64(y+1)/orgHeight*imgHeight)
-	// 		gc.LineTo(float64(x)/orgWidth*imgWidth, float64(y)/orgHeight*imgHeight)
-	// 		gc.Stroke()
-	// 	}
-	// }
 
 	// draw cell grid
 	gc.SetDash(1, 2)
@@ -156,20 +98,6 @@ func testSavePaths(paths [][][2]float64, values []float64,
 		}
 	}
 
-	// for _, path := range paths {
-	// 	if len(path) > 2 {
-	// 		gc.MoveTo(path[0][0]/orgWidth*imgWidth, path[0][1]/orgHeight*imgHeight)
-	// 		for i := 1; i < len(path); i++ {
-	// 			gc.LineTo(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight)
-	// 		}
-	// 		gc.ClosePath()
-	// 	}
-	// }
-
-	// //	gc.SetFillRuleEvenOdd()
-	// gc.SetColor(color.NRGBA{0x88, 0xAA, 0xCC, 0xFF})
-	// gc.Fill()
-
 	gc.SetDash()
 	gc.SetLineWidth(2)
 	gc.SetColor(color.NRGBA{0xCC, 0x66, 0x66, 0xFF})
@@ -190,30 +118,5 @@ func testSavePaths(paths [][][2]float64, values []float64,
 		}
 	}
 
-	//opts := Options{PixelPlane: true}
-
-	// // draw outline
-	// if true {
-	// 	for i, path := range paths {
-	// 		min, max := polygon(path).rect()
-	// 		gc.MoveTo(min[0], min[1])
-	// 		gc.LineTo(max[0], min[1])
-	// 		gc.LineTo(max[0], max[1])
-	// 		gc.LineTo(min[0], max[1])
-	// 		gc.LineTo(min[0], min[1])
-	// 		gc.SetLineWidth(1)
-	// 		//if i == 2 {
-	// 		//	reverseWinding(path)
-	// 		//}
-	// 		if polygon(path).isClockwise() {
-	// 			gc.SetColor(color.NRGBA{0, 0, 0xff, 0xFF})
-	// 		} else {
-	// 			gc.SetColor(color.NRGBA{0xff, 0, 0, 0xFF})
-	// 		}
-	// 		gc.Stroke()
-	// 		gc.DrawString(fmt.Sprintf("%d", i), min[0]+2, min[1]+12)
-	// 		gc.Fill()
-	// 	}
-	// }
 	return gc.SavePNG(filePath)
 }
