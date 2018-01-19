@@ -554,19 +554,31 @@ func interpolatePaths(paths [][][2]float64, values []float64, level float64, wid
 	for i := 0; i < len(paths); i++ {
 		for j := 0; j < len(paths[i]); j++ {
 			p := paths[i][j]
+			p[0] = round(p[0], 1)
+			p[1] = round(p[1], 1)
 			if math.Floor(p[1]) == p[1] {
 				v1 := values[int(p[1]-1)*width+int(p[0])]
 				v2 := values[int(p[1])*width+int(p[0])]
 				q := (1.0 - ((level - v2) / (v1 - v2)))
-				p[1] = p[1] - 0.5 + q
+				if !math.IsInf(q, 0) && q >= 0 && q <= 1 {
+					p[1] = p[1] - 0.5 + q
+				}
 			} else {
 				v1 := values[int(p[1])*width+int(p[0]-1)]
 				v2 := values[int(p[1])*width+int(p[0])]
 				q := (1.0 - ((level - v2) / (v1 - v2)))
-				p[0] = p[0] - 0.5 + q
+				if !math.IsInf(q, 0) && q >= 0 && q <= 1 {
+					p[0] = p[0] - 0.5 + q
+				}
 			}
 			paths[i][j] = p
+
 		}
 	}
 	return paths
+}
+
+func round(f float64, places int) float64 {
+	shift := math.Pow(10, float64(places))
+	return math.Floor((f*shift)+.5) / shift
 }
