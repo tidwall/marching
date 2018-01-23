@@ -10,7 +10,7 @@ func Paths(values []float64, width, height int, level float64) [][][2]float64 {
 	cells := makeCells(values, width, height, level)
 	paths := makePaths(cells, width, height, level)
 	paths = interpolatePaths(paths, values, level, width, height)
-	//paths = offsetPaths(paths, -0.5, -0.5)
+	//paths = Curve(paths)
 	return paths
 }
 
@@ -574,8 +574,10 @@ func interpolatePaths(paths [][][2]float64, values []float64, level float64, wid
 			}
 			paths[i][j] = p
 			// offset the path
-			paths[i][j][0] -= 0.5
-			paths[i][j][1] -= 0.5
+			// paths[i][j][0] = paths[i][j][0] / 256 * 256.5
+			// paths[i][j][1] = paths[i][j][1] / 256 * 256.5
+			// paths[i][j][0] -= 0.5
+			// paths[i][j][1] -= 0.5
 
 		}
 	}
@@ -586,13 +588,3 @@ func round(f float64, places int) float64 {
 	shift := math.Pow(10, float64(places))
 	return math.Floor((f*shift)+.5) / shift
 }
-
-// func offsetPaths(paths [][][2]float64, x, y float64) [][][2]float64 {
-// 	for i := 0; i < len(paths); i++ {
-// 		for j := 0; j < len(paths[i]); j++ {
-// 			paths[i][j][0] += x
-// 			paths[i][j][1] += y
-// 		}
-// 	}
-// 	return paths
-// }
