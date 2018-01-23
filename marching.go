@@ -8,23 +8,10 @@ import (
 // Paths generates linestring paths from a sample of values.
 func Paths(values []float64, width, height int, level float64) [][][2]float64 {
 	cells := makeCells(values, width, height, level)
-	if false {
-		segments := makeSegments(cells, width, height, level)
-
-		var paths [][][2]float64
-		for i := 0; i < len(segments); i += 2 {
-			paths = append(paths, [][2]float64{
-				segments[i], segments[i+1],
-			})
-		}
-		return paths
-	} else {
-		//paths := [][][2]float64{segments}
-
-		paths := makePaths(cells, width, height, level)
-		paths = interpolatePaths(paths, values, level, width, height)
-		return paths
-	}
+	paths := makePaths(cells, width, height, level)
+	paths = interpolatePaths(paths, values, level, width, height)
+	//paths = offsetPaths(paths, -0.5, -0.5)
+	return paths
 }
 
 // multi is used as a grid cell multiplier for integer space.
@@ -556,10 +543,6 @@ func (lg *lineGatherer) addCell(
 	}
 }
 
-func lint(a, b, level float64) float64 {
-	return 1 - (level-a)/(b-a)
-}
-
 // addGrid will add the cells from a grid and reduce the lines
 func (lg *lineGatherer) addCells(cells []cellT, width, height int, level float64) int {
 	for y := 0; y < height; y++ {
@@ -581,18 +564,18 @@ func interpolatePaths(paths [][][2]float64, values []float64, level float64, wid
 				v1 := values[int(p[1]-1)*width+int(p[0])]
 				v2 := values[int(p[1])*width+int(p[0])]
 				q := (1.0 - ((level - v2) / (v1 - v2)))
-				if !math.IsInf(q, 0) && q >= 0 && q <= 1 {
-					p[1] = p[1] - 0.5 + q
-				}
-			} else {
+				p[1] = p[1] - 0.5 + q
+			}
+			if math.Floor(p[0]) == p[0] {
 				v1 := values[int(p[1])*width+int(p[0]-1)]
 				v2 := values[int(p[1])*width+int(p[0])]
 				q := (1.0 - ((level - v2) / (v1 - v2)))
-				if !math.IsInf(q, 0) && q >= 0 && q <= 1 {
-					p[0] = p[0] - 0.5 + q
-				}
+				p[0] = p[0] - 0.5 + q
 			}
 			paths[i][j] = p
+			// offset the path
+			paths[i][j][0] -= 0.5
+			paths[i][j][1] -= 0.5
 
 		}
 	}
@@ -603,3 +586,13 @@ func round(f float64, places int) float64 {
 	shift := math.Pow(10, float64(places))
 	return math.Floor((f*shift)+.5) / shift
 }
+
+// func offsetPaths(paths [][][2]float64, x, y float64) [][][2]float64 {
+// 	for i := 0; i < len(paths); i++ {
+// 		for j := 0; j < len(paths[i]); j++ {
+// 			paths[i][j][0] += x
+// 			paths[i][j][1] += y
+// 		}
+// 	}
+// 	return paths
+// }
