@@ -8,9 +8,23 @@ import (
 // Paths generates linestring paths from a sample of values.
 func Paths(values []float64, width, height int, level float64) [][][2]float64 {
 	cells := makeCells(values, width, height, level)
-	paths := makePaths(cells, width, height)
-	paths = interpolatePaths(paths, values, level, width, height)
-	return paths
+	if false {
+		segments := makeSegments(cells, width, height, level)
+
+		var paths [][][2]float64
+		for i := 0; i < len(segments); i += 2 {
+			paths = append(paths, [][2]float64{
+				segments[i], segments[i+1],
+			})
+		}
+		return paths
+	} else {
+		//paths := [][][2]float64{segments}
+
+		paths := makePaths(cells, width, height, level)
+		paths = interpolatePaths(paths, values, level, width, height)
+		return paths
+	}
 }
 
 // multi is used as a grid cell multiplier for integer space.
@@ -27,6 +41,8 @@ type cellT struct {
 	// CenterAbove field indicates that the value in center of the cell
 	// is above the level that was passed to makeCells().
 	CenterAbove bool
+	// Values are the four corner values
+	Values [4]float64
 }
 
 // makeCells ...
@@ -40,37 +56,38 @@ func makeCells(values []float64, width, height int, level float64) []cellT {
 	gwidth := width - 1   // grid width
 	gheight := height - 1 // grid height
 	cells := make([]cellT, gwidth*gheight)
-	var vals [4]float64
 	var j int
 	for y := 0; y < gheight; y++ {
 		for x := 0; x < gwidth; x++ {
 			var cell cellT
 			// one-to-one value lookups
-			vals[0] = values[(y+0)*width+(x+0)]
-			vals[1] = values[(y+0)*width+(x+1)]
-			vals[2] = values[(y+1)*width+(x+1)]
-			vals[3] = values[(y+1)*width+(x+0)]
-			if vals[0] < level {
+			cell.Values[0] = values[(y+0)*width+(x+0)]
+			cell.Values[1] = values[(y+0)*width+(x+1)]
+			cell.Values[2] = values[(y+1)*width+(x+0)]
+			cell.Values[3] = values[(y+1)*width+(x+1)]
+			if cell.Values[0] < level {
 				// top-left
 				cell.Case |= 0x8
 			}
-			if vals[1] < level {
+			if cell.Values[1] < level {
 				// top-right
 				cell.Case |= 0x4
 			}
-			if vals[2] < level {
-				// bottom-right
-				cell.Case |= 0x2
-			}
-			if vals[3] < level {
+			if cell.Values[2] < level {
 				// bottom-left
 				cell.Case |= 0x1
 			}
+			if cell.Values[3] < level {
+				// bottom-right
+				cell.Case |= 0x2
+			}
 			// determine if center of the cell is above the level. this is used
 			// to swap saddle points when needed.
-			cell.CenterAbove = (vals[0]+vals[1]+vals[2]+vals[3])/4 >= level
+			cell.CenterAbove = (cell.Values[0]+cell.Values[1]+
+				cell.Values[2]+cell.Values[3])/4 >= level
 			cells[j] = cell
 			j++
+			//fmt.Printf("%dx%d\n", x, y)
 		}
 	}
 	return cells
@@ -134,7 +151,7 @@ func (p polygon) pointInside(test [2]float64) bool {
 }
 
 // makePaths ...
-func makePaths(cells []cellT, width, height int) [][][2]float64 {
+func makePaths(cells []cellT, width, height int, level float64) [][][2]float64 {
 	width--
 	height--
 	// widthM and heightM are used to help translate the lineGatherer points to
@@ -146,7 +163,7 @@ func makePaths(cells []cellT, width, height int) [][][2]float64 {
 	// add the grid. this will produce all the lines that will in-turn become
 	// the return paths. count is the valid non-deleted lines that lineGatherer
 	// processed.
-	count := lg.addCells(cells, width, height)
+	count := lg.addCells(cells, width, height, level)
 	var paths [][][2]float64
 	if count == 0 {
 		// having no lines means that the entire grid is above or below the level.
@@ -306,7 +323,7 @@ func (lg *lineGatherer) addSegment(ax, ay, bx, by int, aboveX, aboveY int, hasAb
 
 // reduceLines will take all line segments and generate closed paths.
 // The return value is the final number of non-deleted lines.
-func (lg *lineGatherer) reduceLines() int {
+func (lg *lineGatherer) reduceLines(height float64) int {
 	// sort the lines by Y then X
 	sort.Sort(lg)
 	for {
@@ -539,15 +556,19 @@ func (lg *lineGatherer) addCell(
 	}
 }
 
+func lint(a, b, level float64) float64 {
+	return 1 - (level-a)/(b-a)
+}
+
 // addGrid will add the cells from a grid and reduce the lines
-func (lg *lineGatherer) addCells(cells []cellT, width, height int) int {
+func (lg *lineGatherer) addCells(cells []cellT, width, height int, level float64) int {
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			cell := cells[y*width+x]
 			lg.addCell(cell, x, y, lg.width, lg.height, width, height)
 		}
 	}
-	return lg.reduceLines()
+	return lg.reduceLines(level)
 }
 
 func interpolatePaths(paths [][][2]float64, values []float64, level float64, width, height int) [][][2]float64 {

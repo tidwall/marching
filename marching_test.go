@@ -11,14 +11,16 @@ import (
 
 var (
 	testAValues = []float64{
-		1, 1, 1, 1, 1,
-		1, 2, 3, 2, 1,
-		1, 3, 3, 3, 1,
-		1, 2, 3, 2, 1,
-		1, 1, 1, 1, 1,
+		1, 1, 1, 1, 1, 1, 1,
+		1, 4, 1, 4, 1, 4, 1,
+		1, 1, 4, 1, 4, 1, 1,
+		1, 1, 1, 4, 1, 1, 1,
+		1, 1, 2, 5, 2, 1, 1,
+		1, 1, 1, 1, 1, 1, 1,
+		1, 1, 1, 1, 1, 1, 1,
 	}
-	testAWidth          = 5
-	testAHeight         = 5
+	testAWidth          = 7
+	testAHeight         = 7
 	testALevel  float64 = 2
 
 	testACases = []byte{
@@ -102,14 +104,13 @@ func testSavePaths(paths [][][2]float64, values []float64,
 	gc.SetLineWidth(2)
 	gc.SetColor(color.NRGBA{0xCC, 0x66, 0x66, 0xFF})
 	for _, path := range paths {
-		if len(path) > 2 {
-			for i := 0; i < len(path)-1; i++ {
+		if len(path) > 1 {
+			for i := 0; i < len(path); i += 2 {
 				gc.MoveTo(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight)
 				gc.LineTo(path[i+1][0]/orgWidth*imgWidth, path[i+1][1]/orgHeight*imgHeight)
+				gc.Stroke()
 			}
-			//gc.ClosePath()
 
-			gc.Stroke()
 			for i := 0; i < len(path); i++ {
 				gc.DrawCircle(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight, 2)
 				gc.Fill()
