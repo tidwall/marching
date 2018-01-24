@@ -9,8 +9,8 @@ import (
 func Paths(values []float64, width, height int, level float64) [][][2]float64 {
 	cells := makeCells(values, width, height, level)
 	paths := makePaths(cells, width, height, level)
-	paths = interpolatePaths(paths, values, level, width, height)
-	//paths = Curve(paths)
+	interpolatePaths(paths, values, level, width, height)
+	offsetPaths(paths, -0.5, -0.5)
 	return paths
 }
 
@@ -554,7 +554,7 @@ func (lg *lineGatherer) addCells(cells []cellT, width, height int, level float64
 	return lg.reduceLines(level)
 }
 
-func interpolatePaths(paths [][][2]float64, values []float64, level float64, width, height int) [][][2]float64 {
+func interpolatePaths(paths [][][2]float64, values []float64, level float64, width, height int) {
 	for i := 0; i < len(paths); i++ {
 		for j := 0; j < len(paths[i]); j++ {
 			p := paths[i][j]
@@ -573,18 +573,20 @@ func interpolatePaths(paths [][][2]float64, values []float64, level float64, wid
 				p[0] = p[0] - 0.5 + q
 			}
 			paths[i][j] = p
-			// offset the path
-			// paths[i][j][0] = paths[i][j][0] / 256 * 256.5
-			// paths[i][j][1] = paths[i][j][1] / 256 * 256.5
-			// paths[i][j][0] -= 0.5
-			// paths[i][j][1] -= 0.5
-
 		}
 	}
-	return paths
 }
 
 func round(f float64, places int) float64 {
 	shift := math.Pow(10, float64(places))
 	return math.Floor((f*shift)+.5) / shift
+}
+
+func offsetPaths(paths [][][2]float64, xoffset, yoffset float64) {
+	for i := 0; i < len(paths); i++ {
+		for j := 0; j < len(paths[i]); j++ {
+			paths[i][j][0] += xoffset
+			paths[i][j][1] += yoffset
+		}
+	}
 }
