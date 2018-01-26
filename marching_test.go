@@ -2,7 +2,9 @@ package marching
 
 import (
 	"fmt"
+	"image"
 	"image/color"
+	"image/draw"
 	"math"
 	"testing"
 
@@ -61,6 +63,32 @@ func TestMarching(t *testing.T) {
 		float64(width), float64(height),
 		256, 256,
 		"testpaths.png")
+}
+
+func generateSamples(img image.Image) (values []float64, min, max float64) {
+	rgba, ok := img.(*image.RGBA)
+	if !ok {
+		// convert to RGBA
+		rgba = image.NewRGBA(img.Bounds())
+		draw.Draw(rgba, img.Bounds(), img, image.Pt(0, 0), draw.Src)
+		return generateSamples(rgba)
+	}
+	values = make([]float64, len(rgba.Pix)/4)
+	for i := 0; i < len(rgba.Pix); i += 4 {
+		red := float64(rgba.Pix[i+0])
+		green := float64(rgba.Pix[i+1])
+		blue := float64(rgba.Pix[i+2])
+		value := (red*256 + green + blue/256) - 32768
+		values[i/4] = value
+		if i == 0 {
+			min, max = value, value
+		} else if value < min {
+			min = value
+		} else if value > max {
+			max = value
+		}
+	}
+	return
 }
 
 func testSavePaths(paths [][][2]float64, values []float64,

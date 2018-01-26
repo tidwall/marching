@@ -20,6 +20,7 @@ type endpointT struct {
 	next    *endpointT
 }
 
+// Paths returns line strings around the samples.
 func Paths(samples []float64, width, height int, level float64) [][][2]float64 {
 	if len(samples) != width*height {
 		panic("number of values are not equal to width multiplied by height")
@@ -328,7 +329,7 @@ func lerp(below, above, level float64) float64 {
 	return 0.5
 }
 
-// ��---0---•
+// •---0---•
 // |       |
 // 1       2
 // |       |
