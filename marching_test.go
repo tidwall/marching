@@ -17,6 +17,13 @@ var (
 		1, 2, 3, 2, 1,
 		1, 1, 1, 1, 1,
 	}
+	// testAValues = []float64{
+	// 	1, 1, 1, 1, 1,
+	// 	3, 3, 3, 3, 3,
+	// 	1, 1, 1, 1, 1,
+	// 	1, 1, 1, 1, 1,
+	// 	1, 1, 1, 1, 1,
+	// }
 	testAWidth          = 5
 	testAHeight         = 5
 	testALevel  float64 = 2
@@ -121,4 +128,20 @@ func testSavePaths(paths [][][2]float64, values []float64,
 	}
 
 	return gc.SavePNG(filePath)
+}
+
+func TestWall(t *testing.T) {
+	tequals := func(a, b int) {
+		if a != b {
+			panic("mismatch")
+		}
+	}
+	tequals(wallIndexForSide(top, 1, 1, 3), 8)
+	tequals(wallIndexForSide(top, 1, 2, 3), 15)
+	tequals(wallIndexForSide(bottom, 1, 1, 3), 15)
+	tequals(wallIndexForSide(bottom, 1, 2, 3), 22)
+	tequals(wallIndexForSide(left, 1, 1, 3), 11)
+	tequals(wallIndexForSide(left, 1, 2, 3), 18)
+	tequals(wallIndexForSide(right, 1, 1, 3), 12)
+	tequals(wallIndexForSide(right, 1, 2, 3), 19)
 }
