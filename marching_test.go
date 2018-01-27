@@ -12,20 +12,20 @@ import (
 )
 
 var (
-	testAValues = []float64{
-		1, 1, 1, 1, 1,
-		1, 2, 3, 2, 1,
-		1, 3, 0, 3, 1,
-		1, 2, 3, 2, 1,
-		1, 1, 1, 1, 1,
-	}
 	// testAValues = []float64{
 	// 	1, 1, 1, 1, 1,
-	// 	3, 3, 3, 3, 3,
-	// 	1, 1, 1, 1, 1,
-	// 	1, 1, 1, 1, 1,
+	// 	1, 2, 3, 2, 1,
+	// 	1, 3, 0, 3, 1,
+	// 	1, 2, 3, 2, 1,
 	// 	1, 1, 1, 1, 1,
 	// }
+	testAValues = []float64{
+		3, 3, 3, 3, 3,
+		3, 3, 3, 3, 3,
+		3, 1, 1, 1, 3,
+		3, 1, 1, 1, 3,
+		3, 3, 3, 3, 3,
+	}
 	testAWidth          = 5
 	testAHeight         = 5
 	testALevel  float64 = 2
@@ -58,7 +58,7 @@ func TestMarching(t *testing.T) {
 	width = testAWidth
 	height = testAHeight
 	level = testALevel
-	paths := Paths(values, width, height, level)
+	paths := Paths(values, width, height, level, true)
 	testSavePaths(paths, values,
 		float64(width), float64(height),
 		256, 256,
@@ -133,25 +133,49 @@ func testSavePaths(paths [][][2]float64, values []float64,
 		}
 	}
 
+	gc.SetColor(color.NRGBA{0xCC, 0x66, 0x66, 0x20})
+	for _, path := range paths {
+		if len(path) < 2 {
+			continue
+		}
+		for i := 0; i < len(path); i++ {
+			if i == 0 {
+				gc.MoveTo(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight)
+			} else {
+				gc.LineTo(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight)
+			}
+		}
+		gc.ClosePath()
+	}
+	gc.Fill()
+
 	gc.SetDash()
+	gc.SetFillRuleWinding()
 	gc.SetLineWidth(2)
 	gc.SetColor(color.NRGBA{0xCC, 0x66, 0x66, 0xFF})
 	for _, path := range paths {
-		if len(path) > 1 {
-			for i := 0; i < len(path); i++ {
-				if i == 0 {
-					gc.MoveTo(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight)
-				} else {
-					gc.LineTo(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight)
-				}
-
+		if len(path) < 2 {
+			continue
+		}
+		for i := 0; i < len(path); i++ {
+			if i == 0 {
+				gc.MoveTo(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight)
+			} else {
+				gc.LineTo(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight)
 			}
-			gc.Stroke()
-			for i := 0; i < len(path); i++ {
-				gc.DrawCircle(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight, 2)
-				gc.Fill()
+		}
+		gc.ClosePath()
+	}
+	gc.Stroke()
 
-			}
+	gc.SetColor(color.NRGBA{0xCC, 0x66, 0x66, 0xFF})
+	for _, path := range paths {
+		if len(path) < 2 {
+			continue
+		}
+		for i := 0; i < len(path); i++ {
+			gc.DrawCircle(path[i][0]/orgWidth*imgWidth, path[i][1]/orgHeight*imgHeight, 3)
+			gc.Fill()
 		}
 	}
 

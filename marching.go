@@ -1,7 +1,6 @@
 package marching
 
 const (
-	doALGO2  = true
 	doLERP   = true
 	doOFFSET = true
 )
@@ -21,7 +20,7 @@ type endpointT struct {
 }
 
 // Paths returns line strings around the samples.
-func Paths(samples []float64, width, height int, level float64) [][][2]float64 {
+func Paths(samples []float64, width, height int, level float64, closePaths bool) [][][2]float64 {
 	if len(samples) != width*height {
 		panic("number of values are not equal to width multiplied by height")
 	}
@@ -37,6 +36,7 @@ func Paths(samples []float64, width, height int, level float64) [][][2]float64 {
 	var llpaths []*endpointT              // unique paths
 	var sides [2][2]side
 	var numLines int
+	var outerAbove bool
 	// store each line in an endpoints hash
 	for cell.y = 0; cell.y < cell.gheight; cell.y++ {
 		for cell.x = 0; cell.x < cell.gwidth; cell.x++ {
@@ -72,6 +72,7 @@ func Paths(samples []float64, width, height int, level float64) [][][2]float64 {
 				// o---------o
 				// all is above
 				numLines = 0
+				outerAbove = true
 			case 15:
 				// •---------•
 				// |         |
@@ -241,7 +242,6 @@ func Paths(samples []float64, width, height int, level float64) [][][2]float64 {
 					ptB.pathIdx = ptA.pathIdx
 				}
 				ptA.next = ptB
-
 				if ptA.pathIdx != ptB.pathIdx {
 					// Must joined two different paths.
 					// drop the previous path
@@ -254,10 +254,89 @@ func Paths(samples []float64, width, height int, level float64) [][][2]float64 {
 					}
 				}
 			}
+
 		}
 	}
-
 	var paths [][][2]float64
+	if closePaths {
+		// scan the outer walls looking for loose points that
+		// can be closed up.
+		// We'll start at the top-left corner and traverse clockwise around
+		// each side until we detect a point that has no next link. Then well
+		// create lines until we return to the first point.
+		var endidx = -1
+		var once bool
+		var lastpoint *endpointT
+		scanWalls(endpoints, cell.gwidth, cell.gheight,
+			func(index int, point *endpointT) bool {
+				if endidx == -1 {
+					endidx = 0
+				} else if index == endidx {
+					return false
+				}
+				if point != nil {
+					if !once {
+						if point.next != nil {
+							// ignore this point
+							return true
+						}
+						endidx = index
+						once = true
+					}
+					if lastpoint == nil {
+						lastpoint = point
+					} else {
+						lastpoint.next = point
+						lastpoint = nil
+					}
+				}
+				return true
+			},
+			func(corner int) {
+				if lastpoint == nil {
+					return
+				}
+				point := new(endpointT)
+				switch corner {
+				case 0: // top-left
+					point.point[0] = 0
+					point.point[1] = 0
+				case 1: // top-right
+					point.point[0] = float64(cell.gwidth)
+					point.point[1] = 0
+				case 2: // bottom-right
+					point.point[0] = float64(cell.gwidth)
+					point.point[1] = float64(cell.gheight)
+				case 3: // bottom-left
+					point.point[0] = 0
+					point.point[1] = float64(cell.gheight)
+				}
+				if !doOFFSET {
+					point.point[0] += 0.5
+					point.point[1] += 0.5
+				}
+				lastpoint.next = point
+				lastpoint = point
+			},
+		)
+		if !once && outerAbove {
+			// We need to make a ring all the way around.
+			path := [][2]float64{
+				[2]float64{0, 0},
+				[2]float64{float64(cell.gwidth), 0},
+				[2]float64{float64(cell.gwidth), float64(cell.gheight)},
+				[2]float64{0, float64(cell.gheight)},
+				[2]float64{0, 0},
+			}
+			if !doOFFSET {
+				for i := 0; i < len(path); i++ {
+					path[i][0] += 0.5
+					path[i][1] += 0.5
+				}
+			}
+			paths = append(paths, path)
+		}
+	}
 	for _, llpath := range llpaths {
 		var path [][2]float64
 		pt := llpath
@@ -281,6 +360,59 @@ func Paths(samples []float64, width, height int, level float64) [][][2]float64 {
 		}
 	}
 	return paths
+}
+
+// Outer wall scanning uses this type of indexing
+// •---0---•---1---•
+// |       |       |
+// 7       |       2
+// |       |       |
+// •-------•-------•
+// |       |       |
+// 6       |       3
+// |       |       |
+// •---5---•---4---•
+
+func scanWalls(
+	endpoints map[int]*endpointT,
+	width, height int,
+	iter func(index int, point *endpointT) bool,
+	cornr func(index int),
+) {
+	nwalls := width*2 + height*2
+	for i := 0; ; i++ {
+		if i == width {
+			cornr(1)
+		} else if i == width+height {
+			cornr(2)
+		} else if i == width+height+width {
+			cornr(3)
+		} else if i == width+height+width+height {
+			cornr(0)
+		}
+		if i == nwalls {
+			i = 0
+		}
+		var x, y int
+		var side side
+		if i < width {
+			side = top
+			x, y = i, 0
+		} else if i < width+height {
+			side = right
+			x, y = width-1, i-width
+		} else if i < width+height+width {
+			side = bottom
+			x, y = width-(i-width-height)-1, height-1
+		} else {
+			side = left
+			x, y = 0, height-(i-width-height-width)-1
+		}
+		wall := wallIndexForSide(side, x, y, width)
+		if !iter(i, endpoints[wall]) {
+			return
+		}
+	}
 }
 
 type side byte
